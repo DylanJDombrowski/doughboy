@@ -205,6 +205,9 @@ export interface Database {
           phone: string | null;
           website: string | null;
           verified: boolean;
+          photos: string[] | null;
+          description: string | null;
+          hours: any | null; // jsonb type
           created_at: string;
         };
         Insert: {
@@ -216,6 +219,9 @@ export interface Database {
           phone?: string | null;
           website?: string | null;
           verified?: boolean;
+          photos?: string[] | null;
+          description?: string | null;
+          hours?: any | null; // jsonb type
           created_at?: string;
         };
         Update: {
@@ -227,6 +233,9 @@ export interface Database {
           phone?: string | null;
           website?: string | null;
           verified?: boolean;
+          photos?: string[] | null;
+          description?: string | null;
+          hours?: any | null; // jsonb type
           created_at?: string;
         };
       };
@@ -279,6 +288,55 @@ export interface Database {
         Update: {
           user_id?: string;
           recipe_id?: string;
+          created_at?: string;
+        };
+      };
+      pizzeria_ratings: {
+        Row: {
+          id: string;
+          pizzeria_id: string;
+          user_id: string;
+          overall_rating: number;
+          crust_rating: number;
+          review: string | null;
+          photos: string[] | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          pizzeria_id: string;
+          user_id: string;
+          overall_rating: number;
+          crust_rating: number;
+          review?: string | null;
+          photos?: string[] | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          pizzeria_id?: string;
+          user_id?: string;
+          overall_rating?: number;
+          crust_rating?: number;
+          review?: string | null;
+          photos?: string[] | null;
+          created_at?: string;
+        };
+      };
+      saved_pizzerias: {
+        Row: {
+          user_id: string;
+          pizzeria_id: string;
+          created_at: string;
+        };
+        Insert: {
+          user_id: string;
+          pizzeria_id: string;
+          created_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          pizzeria_id?: string;
           created_at?: string;
         };
       };

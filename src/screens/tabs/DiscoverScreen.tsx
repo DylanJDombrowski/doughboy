@@ -13,8 +13,8 @@ import { Recipe } from "../../types";
 import { supabase } from "../../services/supabase";
 
 interface RecipeWithRating extends Recipe {
-  average_rating?: number;
-  recipe_ratings?: { rating: number }[];
+  average_overall_rating?: number;
+  recipe_ratings?: { overall_rating: number; crust_rating: number }[];
 }
 
 const DiscoverScreen: React.FC = () => {
@@ -49,22 +49,22 @@ const DiscoverScreen: React.FC = () => {
         const recipeIds = recipes.map((r) => r.id);
         const { data: ratings } = await supabase
           .from("recipe_ratings")
-          .select("recipe_id, rating")
+          .select("recipe_id, overall_rating, crust_rating")
           .in("recipe_id", recipeIds);
 
         // Calculate average ratings
         const recipesWithRatings = recipes.map((recipe) => {
           const recipeRatings =
             ratings?.filter((r) => r.recipe_id === recipe.id) || [];
-          const average_rating =
+          const average_overall_rating =
             recipeRatings.length > 0
               ? recipeRatings.reduce(
-                  (sum: number, r: { rating: number }) => sum + r.rating,
+                  (sum: number, r: { overall_rating: number }) => sum + r.overall_rating,
                   0
                 ) / recipeRatings.length
               : 0;
 
-          return { ...recipe, average_rating };
+          return { ...recipe, average_overall_rating };
         });
 
         setRecipes(recipesWithRatings);
@@ -96,8 +96,8 @@ const DiscoverScreen: React.FC = () => {
           </Text>
           <Text style={styles.time}>{item.total_time_minutes} min</Text>
         </View>
-        {item.average_rating && item.average_rating > 0 && (
-          <Text style={styles.rating}>⭐ {item.average_rating.toFixed(1)}</Text>
+        {item.average_overall_rating && item.average_overall_rating > 0 && (
+          <Text style={styles.rating}>⭐ {item.average_overall_rating.toFixed(1)}</Text>
         )}
       </View>
     </TouchableOpacity>

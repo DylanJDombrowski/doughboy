@@ -66,13 +66,13 @@ const NearMeScreen: React.FC = () => {
 
         // Get ratings for each pizzeria
         const { data: ratings } = await supabase
-          .from("recipe_ratings")
+          .from("pizzeria_ratings")
           .select("*")
-          .in("recipe_id", pizzeriaIds);
+          .in("pizzeria_id", pizzeriaIds);
 
         // Combine data and calculate average ratings
         const pizzeriasWithStyles = pizzerias.map((pizzeria) => {
-          const pizzeriaRatings = ratings?.filter(r => r.recipe_id === pizzeria.id) || [];
+          const pizzeriaRatings = ratings?.filter(r => r.pizzeria_id === pizzeria.id) || [];
           const ratingCount = pizzeriaRatings.length;
           
           // Calculate average ratings if ratings exist

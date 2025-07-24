@@ -1,5 +1,7 @@
 // src/utils/index.ts
 export * from './rating';
+export * from './pizzeriaRating';
+export * from './savedPizzeria';
 
 export const formatTime = (minutes: number): string => {
   if (minutes < 60) {

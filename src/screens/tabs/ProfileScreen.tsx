@@ -61,7 +61,7 @@ const ProfileScreen: React.FC = () => {
           .select("recipe_id", { count: "exact" })
           .eq("user_id", user.id),
         supabase
-          .from("recipe_ratings")
+          .from("pizzeria_ratings")
           .select("id", { count: "exact" })
           .eq("user_id", user.id),
       ]);

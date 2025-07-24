@@ -1,4 +1,5 @@
 // src/types/index.ts
+import { Database } from "./database";
 export * from "./database";
 
 export interface Recipe {
@@ -64,13 +65,17 @@ export interface Pizzeria {
   phone?: string;
   website?: string;
   verified: boolean;
+  photos?: string[];
+  description?: string;
+  hours?: any; // jsonb type
   dough_styles: PizzeriaDoughStyle[];
   pizzeria_dough_styles?: PizzeriaDoughStyle[];
-  average_overall_rating?: number; // renamed from average_rating
+  average_overall_rating?: number; 
   average_crust_rating?: number;
   rating_count?: number;
   created_at: string;
 }
+
 
 export interface PizzeriaDoughStyle {
   id: string;
@@ -113,3 +118,33 @@ export interface User {
   created_at: string;
   updated_at: string;
 }
+
+export interface PizzeriaRating {
+  id: string;
+  pizzeria_id: string;
+  user_id: string;
+  overall_rating: number;
+  crust_rating: number;
+  review?: string;
+  photos?: string[];
+  created_at: string;
+  user?: User; // for joins
+}
+
+export interface PizzeriaWithRatings extends Pizzeria {
+  pizzeria_ratings?: PizzeriaRating[];
+  average_overall_rating?: number;
+  average_crust_rating?: number;
+  total_ratings?: number;
+}
+
+export interface SavedPizzeria {
+  user_id: string;
+  pizzeria_id: string;
+  created_at: string;
+}
+
+// Helper types for common patterns
+export type PizzeriaWithDistance = Pizzeria & { distance: number };
+export type PizzeriaInsert = Database['public']['Tables']['pizzerias']['Insert'];
+export type PizzeriaRatingInsert = Database['public']['Tables']['pizzeria_ratings']['Insert'];

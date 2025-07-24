@@ -136,9 +136,9 @@ export const PizzeriaDetailScreen: React.FC = () => {
   const calculateRatingBreakdown = async (pizzeriaId: string) => {
     try {
       const { data: ratings, error } = await supabase
-        .from("recipe_ratings")
+        .from("pizzeria_ratings")
         .select("overall_rating")
-        .eq("recipe_id", pizzeriaId);
+        .eq("pizzeria_id", pizzeriaId);
         
       if (error) throw error;
       
@@ -181,9 +181,9 @@ export const PizzeriaDetailScreen: React.FC = () => {
   const fetchReviews = async (pizzeriaId: string) => {
     try {
       const { data, error } = await supabase
-        .from("recipe_ratings")
+        .from("pizzeria_ratings")
         .select("*, profiles:user_id(username, avatar_url)")
-        .eq("recipe_id", pizzeriaId)
+        .eq("pizzeria_id", pizzeriaId)
         .order("created_at", { ascending: false })
         .limit(5);
         
@@ -292,9 +292,9 @@ export const PizzeriaDetailScreen: React.FC = () => {
   const fetchReviewPhotos = async (pizzeriaId: string) => {
     try {
       const { data, error } = await supabase
-        .from("recipe_ratings")
+        .from("pizzeria_ratings")
         .select("photos")
-        .eq("recipe_id", pizzeriaId)
+        .eq("pizzeria_id", pizzeriaId)
         .not("photos", "is", null)
         .order("created_at", { ascending: false });
         

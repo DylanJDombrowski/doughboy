@@ -32,9 +32,9 @@ export const createOrUpdateRating = async (
 
     // Check if rating already exists
     const { data: existingRatings, error: fetchError } = await supabase
-      .from("recipe_ratings")
+      .from("pizzeria_ratings")
       .select("*")
-      .eq("recipe_id", ratingInput.recipe_id)
+      .eq("pizzeria_id", ratingInput.recipe_id)
       .eq("user_id", ratingInput.user_id)
       .single();
 
@@ -48,7 +48,7 @@ export const createOrUpdateRating = async (
     if (existingRatings) {
       // Update existing rating
       const { data, error } = await supabase
-        .from("recipe_ratings")
+        .from("pizzeria_ratings")
         .update({
           overall_rating: ratingInput.overall_rating,
           crust_rating: ratingInput.crust_rating,
@@ -67,9 +67,9 @@ export const createOrUpdateRating = async (
     } else {
       // Create new rating
       const { data, error } = await supabase
-        .from("recipe_ratings")
+        .from("pizzeria_ratings")
         .insert({
-          recipe_id: ratingInput.recipe_id,
+          pizzeria_id: ratingInput.recipe_id,
           user_id: ratingInput.user_id,
           overall_rating: ratingInput.overall_rating,
           crust_rating: ratingInput.crust_rating,
@@ -100,9 +100,9 @@ export const getRatingStats = async (
 ): Promise<{ success: boolean; error?: string; stats?: RatingStats }> => {
   try {
     const { data, error } = await supabase
-      .from("recipe_ratings")
+      .from("pizzeria_ratings")
       .select("overall_rating, crust_rating")
-      .eq("recipe_id", recipe_id);
+      .eq("pizzeria_id", recipe_id);
 
     if (error) {
       return { success: false, error: error.message };
