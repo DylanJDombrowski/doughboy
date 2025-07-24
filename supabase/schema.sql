@@ -121,6 +121,40 @@ CREATE TABLE IF NOT EXISTS "public"."pizzeria_dough_styles" (
 ALTER TABLE "public"."pizzeria_dough_styles" OWNER TO "postgres";
 
 
+CREATE TABLE IF NOT EXISTS "public"."pizzeria_ratings" (
+    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
+    "pizzeria_id" "uuid" NOT NULL,
+    "user_id" "uuid" NOT NULL,
+    "overall_rating" integer NOT NULL,
+    "crust_rating" integer NOT NULL,
+    "review" "text",
+    "photos" "text"[],
+    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
+    CONSTRAINT "pizzeria_ratings_crust_rating_check" CHECK ((("crust_rating" >= 1) AND ("crust_rating" <= 5))),
+    CONSTRAINT "pizzeria_ratings_overall_rating_check" CHECK ((("overall_rating" >= 1) AND ("overall_rating" <= 5)))
+);
+
+
+ALTER TABLE "public"."pizzeria_ratings" OWNER TO "postgres";
+
+
+CREATE OR REPLACE VIEW "public"."pizzeria_rating_summary" AS
+ SELECT "pizzeria_id",
+    "count"(*) AS "total_ratings",
+    "round"("avg"("overall_rating"), 1) AS "avg_overall_rating",
+    "round"("avg"("crust_rating"), 1) AS "avg_crust_rating",
+    "count"(*) FILTER (WHERE ("overall_rating" = 5)) AS "five_star_count",
+    "count"(*) FILTER (WHERE ("overall_rating" = 4)) AS "four_star_count",
+    "count"(*) FILTER (WHERE ("overall_rating" = 3)) AS "three_star_count",
+    "count"(*) FILTER (WHERE ("overall_rating" = 2)) AS "two_star_count",
+    "count"(*) FILTER (WHERE ("overall_rating" = 1)) AS "one_star_count"
+   FROM "public"."pizzeria_ratings"
+  GROUP BY "pizzeria_id";
+
+
+ALTER VIEW "public"."pizzeria_rating_summary" OWNER TO "postgres";
+
+
 CREATE TABLE IF NOT EXISTS "public"."pizzerias" (
     "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
     "name" "text" NOT NULL,
@@ -130,7 +164,10 @@ CREATE TABLE IF NOT EXISTS "public"."pizzerias" (
     "phone" "text",
     "website" "text",
     "verified" boolean DEFAULT false,
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL
+    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
+    "photos" "text"[],
+    "description" "text",
+    "hours" "jsonb"
 );
 
 
@@ -156,11 +193,13 @@ CREATE TABLE IF NOT EXISTS "public"."recipe_ratings" (
     "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
     "recipe_id" "uuid" NOT NULL,
     "user_id" "uuid" NOT NULL,
-    "rating" integer NOT NULL,
+    "overall_rating" integer NOT NULL,
     "review" "text",
     "photos" "text"[],
     "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    CONSTRAINT "recipe_ratings_rating_check" CHECK ((("rating" >= 1) AND ("rating" <= 5)))
+    "crust_rating" integer,
+    CONSTRAINT "recipe_ratings_crust_rating_check" CHECK ((("crust_rating" >= 1) AND ("crust_rating" <= 5))),
+    CONSTRAINT "recipe_ratings_rating_check" CHECK ((("overall_rating" >= 1) AND ("overall_rating" <= 5)))
 );
 
 
@@ -188,6 +227,16 @@ CREATE TABLE IF NOT EXISTS "public"."recipes" (
 
 
 ALTER TABLE "public"."recipes" OWNER TO "postgres";
+
+
+CREATE TABLE IF NOT EXISTS "public"."saved_pizzerias" (
+    "user_id" "uuid" NOT NULL,
+    "pizzeria_id" "uuid" NOT NULL,
+    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL
+);
+
+
+ALTER TABLE "public"."saved_pizzerias" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."saved_recipes" (
@@ -232,6 +281,16 @@ ALTER TABLE ONLY "public"."pizzeria_dough_styles"
 
 
 
+ALTER TABLE ONLY "public"."pizzeria_ratings"
+    ADD CONSTRAINT "pizzeria_ratings_pizzeria_id_user_id_key" UNIQUE ("pizzeria_id", "user_id");
+
+
+
+ALTER TABLE ONLY "public"."pizzeria_ratings"
+    ADD CONSTRAINT "pizzeria_ratings_pkey" PRIMARY KEY ("id");
+
+
+
 ALTER TABLE ONLY "public"."pizzerias"
     ADD CONSTRAINT "pizzerias_pkey" PRIMARY KEY ("id");
 
@@ -254,6 +313,11 @@ ALTER TABLE ONLY "public"."recipe_ratings"
 
 ALTER TABLE ONLY "public"."recipes"
     ADD CONSTRAINT "recipes_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."saved_pizzerias"
+    ADD CONSTRAINT "saved_pizzerias_pkey" PRIMARY KEY ("user_id", "pizzeria_id");
 
 
 
@@ -280,6 +344,22 @@ CREATE INDEX "idx_pizzeria_dough_styles_status" ON "public"."pizzeria_dough_styl
 
 
 
+CREATE INDEX "idx_pizzeria_ratings_pizzeria_id" ON "public"."pizzeria_ratings" USING "btree" ("pizzeria_id");
+
+
+
+CREATE INDEX "idx_saved_pizzerias_pizzeria_id" ON "public"."saved_pizzerias" USING "btree" ("pizzeria_id");
+
+
+
+CREATE INDEX "idx_saved_pizzerias_user_id" ON "public"."saved_pizzerias" USING "btree" ("user_id");
+
+
+
+CREATE OR REPLACE TRIGGER "handle_updated_at" BEFORE UPDATE ON "public"."pizzerias" FOR EACH ROW EXECUTE FUNCTION "public"."handle_updated_at"();
+
+
+
 CREATE OR REPLACE TRIGGER "handle_updated_at" BEFORE UPDATE ON "public"."recipes" FOR EACH ROW EXECUTE FUNCTION "public"."handle_updated_at"();
 
 
@@ -295,6 +375,16 @@ ALTER TABLE ONLY "public"."ingredients"
 
 ALTER TABLE ONLY "public"."pizzeria_dough_styles"
     ADD CONSTRAINT "pizzeria_dough_styles_pizzeria_id_fkey" FOREIGN KEY ("pizzeria_id") REFERENCES "public"."pizzerias"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."pizzeria_ratings"
+    ADD CONSTRAINT "pizzeria_ratings_pizzeria_id_fkey" FOREIGN KEY ("pizzeria_id") REFERENCES "public"."pizzerias"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."pizzeria_ratings"
+    ADD CONSTRAINT "pizzeria_ratings_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
 
 
 
@@ -318,6 +408,16 @@ ALTER TABLE ONLY "public"."recipes"
 
 
 
+ALTER TABLE ONLY "public"."saved_pizzerias"
+    ADD CONSTRAINT "saved_pizzerias_pizzeria_id_fkey" FOREIGN KEY ("pizzeria_id") REFERENCES "public"."pizzerias"("id") ON DELETE CASCADE;
+
+
+
+ALTER TABLE ONLY "public"."saved_pizzerias"
+    ADD CONSTRAINT "saved_pizzerias_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
+
+
+
 ALTER TABLE ONLY "public"."saved_recipes"
     ADD CONSTRAINT "saved_recipes_recipe_id_fkey" FOREIGN KEY ("recipe_id") REFERENCES "public"."recipes"("id") ON DELETE CASCADE;
 
@@ -334,6 +434,10 @@ ALTER TABLE ONLY "public"."users"
 
 
 CREATE POLICY "Anyone can view approved dough styles" ON "public"."pizzeria_dough_styles" FOR SELECT USING (("status" = 'approved'::"text"));
+
+
+
+CREATE POLICY "Anyone can view pizzeria ratings" ON "public"."pizzeria_ratings" FOR SELECT USING (true);
 
 
 
@@ -369,11 +473,19 @@ CREATE POLICY "Steps follow recipe visibility" ON "public"."process_steps" FOR S
 
 
 
+CREATE POLICY "Users can create pizzeria ratings" ON "public"."pizzeria_ratings" FOR INSERT WITH CHECK (("auth"."uid"() = "user_id"));
+
+
+
 CREATE POLICY "Users can create ratings" ON "public"."recipe_ratings" FOR INSERT WITH CHECK (("auth"."uid"() = "user_id"));
 
 
 
 CREATE POLICY "Users can create recipes" ON "public"."recipes" FOR INSERT WITH CHECK (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can delete own pizzeria ratings" ON "public"."pizzeria_ratings" FOR DELETE USING (("auth"."uid"() = "user_id"));
 
 
 
@@ -401,11 +513,23 @@ CREATE POLICY "Users can manage steps for own recipes" ON "public"."process_step
 
 
 
+CREATE POLICY "Users can save pizzerias" ON "public"."saved_pizzerias" FOR INSERT WITH CHECK (("auth"."uid"() = "user_id"));
+
+
+
 CREATE POLICY "Users can save recipes" ON "public"."saved_recipes" FOR INSERT WITH CHECK (("auth"."uid"() = "user_id"));
 
 
 
+CREATE POLICY "Users can unsave pizzerias" ON "public"."saved_pizzerias" FOR DELETE USING (("auth"."uid"() = "user_id"));
+
+
+
 CREATE POLICY "Users can unsave recipes" ON "public"."saved_recipes" FOR DELETE USING (("auth"."uid"() = "user_id"));
+
+
+
+CREATE POLICY "Users can update own pizzeria ratings" ON "public"."pizzeria_ratings" FOR UPDATE USING (("auth"."uid"() = "user_id"));
 
 
 
@@ -429,6 +553,10 @@ CREATE POLICY "Users can view own recipes" ON "public"."recipes" FOR SELECT USIN
 
 
 
+CREATE POLICY "Users can view own saved pizzerias" ON "public"."saved_pizzerias" FOR SELECT USING (("auth"."uid"() = "user_id"));
+
+
+
 CREATE POLICY "Users can view own saved recipes" ON "public"."saved_recipes" FOR SELECT USING (("auth"."uid"() = "user_id"));
 
 
@@ -437,6 +565,9 @@ ALTER TABLE "public"."ingredients" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."pizzeria_dough_styles" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."pizzeria_ratings" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."pizzerias" ENABLE ROW LEVEL SECURITY;
@@ -449,6 +580,9 @@ ALTER TABLE "public"."recipe_ratings" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."recipes" ENABLE ROW LEVEL SECURITY;
+
+
+ALTER TABLE "public"."saved_pizzerias" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."saved_recipes" ENABLE ROW LEVEL SECURITY;
@@ -658,6 +792,18 @@ GRANT ALL ON TABLE "public"."pizzeria_dough_styles" TO "service_role";
 
 
 
+GRANT ALL ON TABLE "public"."pizzeria_ratings" TO "anon";
+GRANT ALL ON TABLE "public"."pizzeria_ratings" TO "authenticated";
+GRANT ALL ON TABLE "public"."pizzeria_ratings" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."pizzeria_rating_summary" TO "anon";
+GRANT ALL ON TABLE "public"."pizzeria_rating_summary" TO "authenticated";
+GRANT ALL ON TABLE "public"."pizzeria_rating_summary" TO "service_role";
+
+
+
 GRANT ALL ON TABLE "public"."pizzerias" TO "anon";
 GRANT ALL ON TABLE "public"."pizzerias" TO "authenticated";
 GRANT ALL ON TABLE "public"."pizzerias" TO "service_role";
@@ -679,6 +825,12 @@ GRANT ALL ON TABLE "public"."recipe_ratings" TO "service_role";
 GRANT ALL ON TABLE "public"."recipes" TO "anon";
 GRANT ALL ON TABLE "public"."recipes" TO "authenticated";
 GRANT ALL ON TABLE "public"."recipes" TO "service_role";
+
+
+
+GRANT ALL ON TABLE "public"."saved_pizzerias" TO "anon";
+GRANT ALL ON TABLE "public"."saved_pizzerias" TO "authenticated";
+GRANT ALL ON TABLE "public"."saved_pizzerias" TO "service_role";
 
 
 
