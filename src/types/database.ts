@@ -342,7 +342,19 @@ export interface Database {
       };
     };
     Views: {
-      [_ in never]: never;
+      pizzeria_rating_summary: {
+        Row: {
+          pizzeria_id: string;
+          total_ratings: number;
+          avg_overall_rating: number;
+          avg_crust_rating: number;
+          five_star_count: number;
+          four_star_count: number;
+          three_star_count: number;
+          two_star_count: number;
+          one_star_count: number;
+        };
+      };
     };
     Functions: {
       [_ in never]: never;
