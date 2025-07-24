@@ -1,59 +1,102 @@
-import FontAwesome from '@expo/vector-icons/FontAwesome';
-import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
-import { useFonts } from 'expo-font';
-import { Stack } from 'expo-router';
-import * as SplashScreen from 'expo-splash-screen';
-import { useEffect } from 'react';
-import 'react-native-reanimated';
+// app/_layout.tsx (Root Layout)
+import React, { useEffect, useState } from "react";
+import { Stack } from "expo-router";
+import { StatusBar } from "expo-status-bar";
+import { Platform, Alert } from "react-native";
+import * as Location from "expo-location";
+import * as Notifications from "expo-notifications";
+import { useFonts } from "expo-font";
+import * as SplashScreen from "expo-splash-screen";
 
-import { useColorScheme } from '@/components/useColorScheme';
+import { AuthProvider } from "../src/contexts/AuthContext";
+import { LocationProvider } from "../src/contexts/LocationContext";
 
-export {
-  // Catch any errors thrown by the Layout component.
-  ErrorBoundary,
-} from 'expo-router';
+// Configure notifications
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: true,
+    shouldSetBadge: false,
+    shouldShowBanner: true,
+    shouldShowList: true,
+  }),
+});
 
-export const unstable_settings = {
-  // Ensure that reloading on `/modal` keeps a back button present.
-  initialRouteName: '(tabs)',
-};
-
-// Prevent the splash screen from auto-hiding before asset loading is complete.
+// Prevent splash screen from auto-hiding
 SplashScreen.preventAutoHideAsync();
 
 export default function RootLayout() {
-  const [loaded, error] = useFonts({
-    SpaceMono: require('../assets/fonts/SpaceMono-Regular.ttf'),
-    ...FontAwesome.font,
+  const [appReady, setAppReady] = useState(false);
+  const [fontsLoaded] = useFonts({
+    SpaceMono: require("../assets/fonts/SpaceMono-Regular.ttf"),
   });
 
-  // Expo Router uses Error Boundaries to catch errors in the navigation tree.
   useEffect(() => {
-    if (error) throw error;
-  }, [error]);
+    async function setupApp() {
+      try {
+        // Request permissions
+        const { status: locationStatus } =
+          await Location.requestForegroundPermissionsAsync();
+
+        if (locationStatus !== "granted") {
+          Alert.alert(
+            "Location Permission",
+            "Location access is needed to find pizzerias near you.",
+            [{ text: "OK" }]
+          );
+        }
+
+        // Request notification permissions
+        const { status: notificationStatus } =
+          await Notifications.requestPermissionsAsync();
+
+        if (notificationStatus !== "granted") {
+          Alert.alert(
+            "Notification Permission",
+            "Notifications help you track dough timing.",
+            [{ text: "OK" }]
+          );
+        }
+
+        setAppReady(true);
+      } catch (error) {
+        console.error("App setup error:", error);
+        setAppReady(true);
+      }
+    }
+
+    if (fontsLoaded) {
+      setupApp();
+    }
+  }, [fontsLoaded]);
 
   useEffect(() => {
-    if (loaded) {
+    if (fontsLoaded && appReady) {
       SplashScreen.hideAsync();
     }
-  }, [loaded]);
+  }, [fontsLoaded, appReady]);
 
-  if (!loaded) {
+  if (!fontsLoaded || !appReady) {
     return null;
   }
 
-  return <RootLayoutNav />;
-}
-
-function RootLayoutNav() {
-  const colorScheme = useColorScheme();
-
   return (
-    <ThemeProvider value={colorScheme === 'dark' ? DarkTheme : DefaultTheme}>
-      <Stack>
-        <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-        <Stack.Screen name="modal" options={{ presentation: 'modal' }} />
-      </Stack>
-    </ThemeProvider>
+    <AuthProvider>
+      <LocationProvider>
+        <Stack screenOptions={{ headerShown: false }}>
+          <Stack.Screen name="(tabs)" />
+          <Stack.Screen name="auth" />
+          <Stack.Screen
+            name="recipe/[id]"
+            options={{ presentation: "modal" }}
+          />
+          <Stack.Screen
+            name="pizzeria/[id]"
+            options={{ presentation: "modal" }}
+          />
+        </Stack>
+        <StatusBar style="auto" />
+      </LocationProvider>
+    </AuthProvider>
   );
 }
