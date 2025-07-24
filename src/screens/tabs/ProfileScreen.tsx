@@ -1,4 +1,4 @@
-// src/screens/tabs/ProfileScreen.tsx
+// src/screens/tabs/ProfileScreen.tsx - Final Fix
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -41,7 +41,21 @@ const ProfileScreen: React.FC = () => {
         .single();
 
       if (error) throw error;
-      setProfile(data);
+
+      // Transform the data to match our User interface (keeping null values)
+      const transformedProfile: User = {
+        ...data,
+        use_manual_location: data.use_manual_location ?? false, // Ensure boolean, not null
+        role:
+          data.role === "user" ||
+          data.role === "admin" ||
+          data.role === "moderator"
+            ? data.role
+            : "user", // Default to "user" if null or invalid
+        // All fields are already compatible since we updated the User interface
+      };
+
+      setProfile(transformedProfile);
     } catch (error) {
       console.error("Error fetching profile:", error);
     }
@@ -280,15 +294,6 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: 16,
     color: "#666",
-  },
-  time: {
-    fontSize: 14,
-    color: "#666",
-  },
-  rating: {
-    fontSize: 14,
-    color: "#666",
-    marginTop: 8,
   },
 });
 

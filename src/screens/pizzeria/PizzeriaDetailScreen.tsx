@@ -1,27 +1,30 @@
 // src/screens/pizzeria/PizzeriaDetailScreen.tsx
 import React, { useEffect, useState } from "react";
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  SafeAreaView, 
-  ScrollView, 
-  TouchableOpacity, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  ScrollView,
+  TouchableOpacity,
   Alert,
   Linking,
   Image,
   FlatList,
   Modal,
-  ActivityIndicator
+  ActivityIndicator,
 } from "react-native";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../hooks/useAuth";
 import { useLocation } from "../../contexts/LocationContext";
 import { supabase } from "../../services/supabase";
-import { Pizzeria, RecipeRating } from "../../types";
+import { Pizzeria, PizzeriaRating } from "../../types";
 import { DualRatingDisplay, ReviewModal } from "../../components/ratings";
-import { createOrUpdateRating, getRatingStats } from "../../utils";
+import {
+  createOrUpdatePizzeriaRating,
+  getPizzeriaRatingStats,
+} from "../../utils";
 import { COLORS, SPACING, BORDER_RADIUS } from "../../constants";
 
 interface RatingBreakdown {
@@ -30,11 +33,11 @@ interface RatingBreakdown {
   count: number;
 }
 
-interface ReviewWithProfile extends RecipeRating {
+interface ReviewWithProfile extends PizzeriaRating {
   profiles?: {
-    username?: string;
-    avatar_url?: string;
-  };
+    username?: string | null;
+    avatar_url?: string | null;
+  } | null;
 }
 
 export const PizzeriaDetailScreen: React.FC = () => {
@@ -42,7 +45,7 @@ export const PizzeriaDetailScreen: React.FC = () => {
   const { user } = useAuth();
   const { location } = useLocation();
   const router = useRouter();
-  
+
   const [pizzeria, setPizzeria] = useState<Pizzeria | null>(null);
   const [loading, setLoading] = useState(true);
   const [showRatingInput, setShowRatingInput] = useState(false);
@@ -59,7 +62,7 @@ export const PizzeriaDetailScreen: React.FC = () => {
       fetchPizzeriaDetails(id);
       fetchReviews(id);
       checkIfSaved(id);
-      
+
       // Fetch photos from reviews for this pizzeria
       const loadPhotos = async () => {
         const photos = await fetchReviewPhotos(id);
@@ -77,13 +80,13 @@ export const PizzeriaDetailScreen: React.FC = () => {
 
   const calculateDistance = () => {
     if (!pizzeria || !location) return;
-    
+
     const R = 3959; // Earth's radius in miles
     const lat1 = location.coords.latitude;
     const lon1 = location.coords.longitude;
     const lat2 = pizzeria.latitude;
     const lon2 = pizzeria.longitude;
-    
+
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
     const dLon = ((lon2 - lon1) * Math.PI) / 180;
     const a =
@@ -94,7 +97,7 @@ export const PizzeriaDetailScreen: React.FC = () => {
         Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const distance = R * c;
-    
+
     setDistance(distance);
   };
 
@@ -110,16 +113,16 @@ export const PizzeriaDetailScreen: React.FC = () => {
       if (error) throw error;
 
       // Get ratings
-      const { success, stats } = await getRatingStats(pizzeriaId);
-      
+      const { success, stats } = await getPizzeriaRatingStats(pizzeriaId);
+
       if (success && stats) {
         setPizzeria({
           ...data,
           average_overall_rating: stats.average_overall_rating,
           average_crust_rating: stats.average_crust_rating,
-          rating_count: stats.rating_count
+          rating_count: stats.rating_count,
         } as Pizzeria);
-        
+
         // Calculate rating breakdown
         calculateRatingBreakdown(pizzeriaId);
       } else {
@@ -139,39 +142,39 @@ export const PizzeriaDetailScreen: React.FC = () => {
         .from("pizzeria_ratings")
         .select("overall_rating")
         .eq("pizzeria_id", pizzeriaId);
-        
+
       if (error) throw error;
-      
+
       if (!ratings || ratings.length === 0) {
         return;
       }
-      
+
       const totalRatings = ratings.length;
       const breakdown: RatingBreakdown[] = [];
-      
+
       // Initialize with zeros
       for (let i = 5; i >= 1; i--) {
         breakdown.push({
           stars: i,
           percentage: 0,
-          count: 0
+          count: 0,
         });
       }
-      
+
       // Count occurrences of each rating
-      ratings.forEach(r => {
+      ratings.forEach((r) => {
         const rating = Math.round(r.overall_rating);
         if (rating >= 1 && rating <= 5) {
           const index = 5 - rating;
           breakdown[index].count++;
         }
       });
-      
+
       // Calculate percentages
-      breakdown.forEach(b => {
+      breakdown.forEach((b) => {
         b.percentage = (b.count / totalRatings) * 100;
       });
-      
+
       setRatingBreakdown(breakdown);
     } catch (error) {
       console.error("Error calculating rating breakdown:", error);
@@ -186,10 +189,19 @@ export const PizzeriaDetailScreen: React.FC = () => {
         .eq("pizzeria_id", pizzeriaId)
         .order("created_at", { ascending: false })
         .limit(5);
-        
+
       if (error) throw error;
-      
-      setReviews(data || []);
+
+      // Transform the data to match our interface - keep all original fields
+      const transformedData: ReviewWithProfile[] =
+        data?.map((item) => ({
+          ...item, // Keep all original fields including null values
+          // Add a dummy recipe_id for compatibility (this should be removed from the interface)
+          recipe_id: item.pizzeria_id,
+          profiles: item.profiles,
+        })) || [];
+
+      setReviews(transformedData);
     } catch (error) {
       console.error("Error fetching reviews:", error);
     }
@@ -197,7 +209,7 @@ export const PizzeriaDetailScreen: React.FC = () => {
 
   const checkIfSaved = async (pizzeriaId: string) => {
     if (!user) return;
-    
+
     try {
       const { data, error } = await supabase
         .from("saved_pizzerias")
@@ -205,11 +217,11 @@ export const PizzeriaDetailScreen: React.FC = () => {
         .eq("pizzeria_id", pizzeriaId)
         .eq("user_id", user.id)
         .single();
-        
+
       if (error && error.code !== "PGRST116") {
         throw error;
       }
-      
+
       setIsSaved(!!data);
     } catch (error) {
       console.error("Error checking saved status:", error);
@@ -218,7 +230,7 @@ export const PizzeriaDetailScreen: React.FC = () => {
 
   const toggleSavePizzeria = async () => {
     if (!user || !pizzeria) return;
-    
+
     try {
       if (isSaved) {
         // Delete saved entry
@@ -227,22 +239,20 @@ export const PizzeriaDetailScreen: React.FC = () => {
           .delete()
           .eq("pizzeria_id", pizzeria.id)
           .eq("user_id", user.id);
-          
+
         if (error) throw error;
-        
+
         setIsSaved(false);
         Alert.alert("Success", "Pizzeria removed from your saved list");
       } else {
         // Create saved entry
-        const { error } = await supabase
-          .from("saved_pizzerias")
-          .insert({
-            pizzeria_id: pizzeria.id,
-            user_id: user.id
-          });
-          
+        const { error } = await supabase.from("saved_pizzerias").insert({
+          pizzeria_id: pizzeria.id,
+          user_id: user.id,
+        });
+
         if (error) throw error;
-        
+
         setIsSaved(true);
         Alert.alert("Success", "Pizzeria saved to your list");
       }
@@ -252,12 +262,15 @@ export const PizzeriaDetailScreen: React.FC = () => {
     }
   };
 
-  const handleRatingSubmit = async (overallRating: number, crustRating: number) => {
+  const handleRatingSubmit = async (
+    overallRating: number,
+    crustRating: number
+  ) => {
     if (!user || !pizzeria) return;
 
     try {
-      const { success, error } = await createOrUpdateRating({
-        recipe_id: pizzeria.id, // Using recipe_id field for consistency with the database
+      const { success, error } = await createOrUpdatePizzeriaRating({
+        pizzeria_id: pizzeria.id,
         user_id: user.id,
         overall_rating: overallRating,
         crust_rating: crustRating,
@@ -281,7 +294,7 @@ export const PizzeriaDetailScreen: React.FC = () => {
     if (pizzeria) {
       fetchPizzeriaDetails(pizzeria.id); // Refresh to get updated ratings
       fetchReviews(pizzeria.id); // Refresh reviews
-      
+
       // Refresh photos
       const photos = await fetchReviewPhotos(pizzeria.id);
       setPizzeriaPhotos(photos);
@@ -297,14 +310,14 @@ export const PizzeriaDetailScreen: React.FC = () => {
         .eq("pizzeria_id", pizzeriaId)
         .not("photos", "is", null)
         .order("created_at", { ascending: false });
-        
+
       if (error) throw error;
-      
+
       // Flatten all photo arrays into a single array
       const allPhotos = data
-        ?.filter(item => item.photos && item.photos.length > 0)
-        .flatMap(item => item.photos || []);
-      
+        ?.filter((item) => item.photos && item.photos.length > 0)
+        .flatMap((item) => item.photos || []);
+
       // Return unique photos (remove duplicates)
       return [...new Set(allPhotos)];
     } catch (error) {
@@ -312,21 +325,37 @@ export const PizzeriaDetailScreen: React.FC = () => {
       return [];
     }
   };
-  
+
   const voteDoughStyle = async (styleId: string, voteUp: boolean) => {
     if (!user || !pizzeria) return;
-    
+
     try {
+      // First get the current vote counts
+      const { data: currentStyle, error: fetchError } = await supabase
+        .from("pizzeria_dough_styles")
+        .select("votes_up, votes_down")
+        .eq("id", styleId)
+        .single();
+
+      if (fetchError) throw fetchError;
+
+      const newVotesUp = voteUp
+        ? (currentStyle.votes_up || 0) + 1
+        : currentStyle.votes_up;
+      const newVotesDown = !voteUp
+        ? (currentStyle.votes_down || 0) + 1
+        : currentStyle.votes_down;
+
       const { error } = await supabase
         .from("pizzeria_dough_styles")
         .update({
-          votes_up: voteUp ? supabase.rpc('increment', { x: 1 }) : undefined,
-          votes_down: !voteUp ? supabase.rpc('increment', { x: 1 }) : undefined,
+          votes_up: newVotesUp,
+          votes_down: newVotesDown,
         })
         .eq("id", styleId);
-        
+
       if (error) throw error;
-      
+
       // Refresh pizzeria details
       fetchPizzeriaDetails(pizzeria.id);
       Alert.alert("Thanks!", "Your vote has been recorded");
@@ -338,22 +367,25 @@ export const PizzeriaDetailScreen: React.FC = () => {
 
   const sharePizzeria = () => {
     if (!pizzeria) return;
-    
-    const shareText = `Check out ${pizzeria.name} on Doughboy! ` +
+
+    const shareText =
+      `Check out ${pizzeria.name} on Doughboy! ` +
       `Overall rating: ${pizzeria.average_overall_rating?.toFixed(1)}/5, ` +
       `Crust rating: ${pizzeria.average_crust_rating?.toFixed(1)}/5. ` +
       `https://doughboy.app/pizzeria/${pizzeria.id}`;
-    
+
     try {
       if (navigator.share) {
         navigator.share({
           title: pizzeria.name,
           text: shareText,
-          url: `https://doughboy.app/pizzeria/${pizzeria.id}`
+          url: `https://doughboy.app/pizzeria/${pizzeria.id}`,
         });
       } else {
         // Fallback if Web Share API is not available
-        Linking.openURL(`mailto:?subject=Check out ${pizzeria.name}&body=${shareText}`);
+        Linking.openURL(
+          `mailto:?subject=Check out ${pizzeria.name}&body=${shareText}`
+        );
       }
     } catch (error) {
       console.error("Error sharing pizzeria:", error);
@@ -376,9 +408,13 @@ export const PizzeriaDetailScreen: React.FC = () => {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.errorContainer}>
-          <Ionicons name="alert-circle-outline" size={48} color={COLORS.error} />
+          <Ionicons
+            name="alert-circle-outline"
+            size={48}
+            color={COLORS.error}
+          />
           <Text style={styles.errorText}>Pizzeria not found</Text>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.backButton}
             onPress={() => router.back()}
           >
@@ -403,15 +439,15 @@ export const PizzeriaDetailScreen: React.FC = () => {
               </View>
             )}
           </View>
-          
+
           <Text style={styles.address}>{pizzeria.address}</Text>
-          
+
           {distance !== null && (
             <Text style={styles.distance}>
               {distance.toFixed(1)} miles from your location
             </Text>
           )}
-          
+
           {/* Rating Summary Section */}
           <View style={styles.ratingSummary}>
             <DualRatingDisplay
@@ -420,87 +456,98 @@ export const PizzeriaDetailScreen: React.FC = () => {
               ratingCount={pizzeria.rating_count || 0}
               size={24}
             />
-            
+
             {/* Rating Breakdown */}
             {ratingBreakdown.length > 0 && (
               <View style={styles.ratingBreakdown}>
                 {ratingBreakdown.map((item) => (
-                  <View key={`rating-${item.stars}`} style={styles.breakdownRow}>
+                  <View
+                    key={`rating-${item.stars}`}
+                    style={styles.breakdownRow}
+                  >
                     <Text style={styles.breakdownLabel}>{item.stars} ★</Text>
                     <View style={styles.breakdownBarContainer}>
-                      <View 
+                      <View
                         style={[
-                          styles.breakdownBar, 
-                          { width: `${item.percentage}%` }
-                        ]} 
+                          styles.breakdownBar,
+                          { width: `${item.percentage}%` },
+                        ]}
                       />
                     </View>
-                    <Text style={styles.breakdownPercentage}>{Math.round(item.percentage)}%</Text>
+                    <Text style={styles.breakdownPercentage}>
+                      {Math.round(item.percentage)}%
+                    </Text>
                   </View>
                 ))}
               </View>
             )}
           </View>
-          
+
           {/* Action Buttons */}
           <View style={styles.actionButtons}>
             {user && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.actionButton}
                 onPress={() => setShowReviewModal(true)}
               >
                 <Ionicons name="star" size={22} color={COLORS.white} />
-                <Text style={styles.actionButtonText}>
-                  Review
-                </Text>
+                <Text style={styles.actionButtonText}>Review</Text>
               </TouchableOpacity>
             )}
-            
+
             {user && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={[
                   styles.actionButton,
-                  isSaved ? styles.savedButton : null
+                  isSaved ? styles.savedButton : null,
                 ]}
                 onPress={toggleSavePizzeria}
               >
-                <Ionicons 
-                  name={isSaved ? "bookmark" : "bookmark-outline"} 
-                  size={22} 
-                  color={COLORS.white} 
+                <Ionicons
+                  name={isSaved ? "bookmark" : "bookmark-outline"}
+                  size={22}
+                  color={COLORS.white}
                 />
                 <Text style={styles.actionButtonText}>
                   {isSaved ? "Saved" : "Save"}
                 </Text>
               </TouchableOpacity>
             )}
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={styles.actionButton}
               onPress={sharePizzeria}
             >
-              <Ionicons name="share-social-outline" size={22} color={COLORS.white} />
+              <Ionicons
+                name="share-social-outline"
+                size={22}
+                color={COLORS.white}
+              />
               <Text style={styles.actionButtonText}>Share</Text>
             </TouchableOpacity>
-            
-            <TouchableOpacity 
+
+            <TouchableOpacity
               style={styles.actionButton}
-              onPress={() => 
+              onPress={() =>
                 Linking.openURL(
                   `https://maps.google.com/?q=${pizzeria.latitude},${pizzeria.longitude}`
                 )
               }
             >
-              <Ionicons name="navigate-outline" size={22} color={COLORS.white} />
+              <Ionicons
+                name="navigate-outline"
+                size={22}
+                color={COLORS.white}
+              />
               <Text style={styles.actionButtonText}>Directions</Text>
             </TouchableOpacity>
           </View>
         </View>
-        
+
         {/* Contact Buttons */}
         <View style={styles.contactButtons}>
           {pizzeria.phone && (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.contactButton}
               onPress={() => Linking.openURL(`tel:${pizzeria.phone}`)}
             >
@@ -508,9 +555,9 @@ export const PizzeriaDetailScreen: React.FC = () => {
               <Text style={styles.contactButtonText}>Call</Text>
             </TouchableOpacity>
           )}
-          
+
           {pizzeria.website && (
-            <TouchableOpacity 
+            <TouchableOpacity
               style={styles.contactButton}
               onPress={() => Linking.openURL(pizzeria.website!)}
             >
@@ -518,10 +565,10 @@ export const PizzeriaDetailScreen: React.FC = () => {
               <Text style={styles.contactButtonText}>Website</Text>
             </TouchableOpacity>
           )}
-          
-          <TouchableOpacity 
+
+          <TouchableOpacity
             style={styles.contactButton}
-            onPress={() => 
+            onPress={() =>
               Linking.openURL(
                 `https://maps.google.com/?q=${pizzeria.latitude},${pizzeria.longitude}`
               )
@@ -531,62 +578,64 @@ export const PizzeriaDetailScreen: React.FC = () => {
             <Text style={styles.contactButtonText}>Map</Text>
           </TouchableOpacity>
         </View>
-        
+
         {/* Dough Styles Section */}
-        {pizzeria.pizzeria_dough_styles && pizzeria.pizzeria_dough_styles.length > 0 && (
-          <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Specializes in</Text>
-            <View style={styles.doughStylesContainer}>
-              {pizzeria.pizzeria_dough_styles.map((style) => (
-                <View key={style.id} style={styles.doughStyleCard}>
-                  <Text style={styles.doughStyleText}>
-                    {style.dough_style.replace(/_/g, " ")}
-                  </Text>
-                  <View style={styles.voteButtons}>
-                    <TouchableOpacity 
-                      style={styles.voteButton}
-                      onPress={() => voteDoughStyle(style.id, true)}
-                    >
-                      <Ionicons 
-                        name="thumbs-up-outline" 
-                        size={18} 
-                        color={COLORS.primary} 
-                      />
-                      <Text style={styles.voteCount}>{style.votes_up || 0}</Text>
-                    </TouchableOpacity>
-                    <TouchableOpacity 
-                      style={styles.voteButton}
-                      onPress={() => voteDoughStyle(style.id, false)}
-                    >
-                      <Ionicons 
-                        name="thumbs-down-outline" 
-                        size={18} 
-                        color={COLORS.error} 
-                      />
-                      <Text style={styles.voteCount}>{style.votes_down || 0}</Text>
-                    </TouchableOpacity>
+        {pizzeria.pizzeria_dough_styles &&
+          pizzeria.pizzeria_dough_styles.length > 0 && (
+            <View style={styles.section}>
+              <Text style={styles.sectionTitle}>Specializes in</Text>
+              <View style={styles.doughStylesContainer}>
+                {pizzeria.pizzeria_dough_styles.map((style) => (
+                  <View key={style.id} style={styles.doughStyleCard}>
+                    <Text style={styles.doughStyleText}>
+                      {style.dough_style.replace(/_/g, " ")}
+                    </Text>
+                    <View style={styles.voteButtons}>
+                      <TouchableOpacity
+                        style={styles.voteButton}
+                        onPress={() => voteDoughStyle(style.id, true)}
+                      >
+                        <Ionicons
+                          name="thumbs-up-outline"
+                          size={18}
+                          color={COLORS.primary}
+                        />
+                        <Text style={styles.voteCount}>
+                          {style.votes_up || 0}
+                        </Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.voteButton}
+                        onPress={() => voteDoughStyle(style.id, false)}
+                      >
+                        <Ionicons
+                          name="thumbs-down-outline"
+                          size={18}
+                          color={COLORS.error}
+                        />
+                        <Text style={styles.voteCount}>
+                          {style.votes_down || 0}
+                        </Text>
+                      </TouchableOpacity>
+                    </View>
                   </View>
-                </View>
-              ))}
+                ))}
+              </View>
             </View>
-          </View>
-        )}
-        
+          )}
+
         {/* Photos Gallery Section */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Photos</Text>
           {pizzeriaPhotos.length > 0 ? (
             <View style={styles.photoGallery}>
-              <ScrollView 
-                horizontal 
-                showsHorizontalScrollIndicator={false}
-              >
+              <ScrollView horizontal showsHorizontalScrollIndicator={false}>
                 {pizzeriaPhotos.map((photo, index) => (
-                  <TouchableOpacity 
+                  <TouchableOpacity
                     key={`photo-${index}`}
                     onPress={() => setFullScreenPhoto(photo)}
                   >
-                    <Image 
+                    <Image
                       source={{ uri: photo }}
                       style={styles.galleryPhoto}
                     />
@@ -596,7 +645,11 @@ export const PizzeriaDetailScreen: React.FC = () => {
             </View>
           ) : (
             <View style={styles.emptyPhotos}>
-              <Ionicons name="images-outline" size={48} color={COLORS.textLight} />
+              <Ionicons
+                name="images-outline"
+                size={48}
+                color={COLORS.textLight}
+              />
               <Text style={styles.emptyPhotosText}>No photos yet</Text>
               <Text style={styles.emptyPhotosSubtext}>
                 Be the first to add photos by submitting a review!
@@ -604,7 +657,7 @@ export const PizzeriaDetailScreen: React.FC = () => {
             </View>
           )}
         </View>
-        
+
         {/* Recent Reviews Section */}
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
@@ -613,22 +666,23 @@ export const PizzeriaDetailScreen: React.FC = () => {
               <Text style={styles.seeAllButton}>See All</Text>
             </TouchableOpacity>
           </View>
-          
+
           {reviews.length > 0 ? (
             <View style={styles.reviewsList}>
               {reviews.map((review) => (
                 <View key={review.id} style={styles.reviewCard}>
                   <View style={styles.reviewHeader}>
                     <View style={styles.reviewerInfo}>
-                      <Image 
-                        source={{ 
-                          uri: review.profiles?.avatar_url || 
-                            'https://ui-avatars.com/api/?name=User&background=random' 
+                      <Image
+                        source={{
+                          uri:
+                            review.profiles?.avatar_url ||
+                            "https://ui-avatars.com/api/?name=User&background=random",
                         }}
                         style={styles.reviewerAvatar}
                       />
                       <Text style={styles.reviewerName}>
-                        {review.profiles?.username || 'Anonymous'}
+                        {review.profiles?.username || "Anonymous"}
                       </Text>
                     </View>
                     <DualRatingDisplay
@@ -638,14 +692,14 @@ export const PizzeriaDetailScreen: React.FC = () => {
                       size={14}
                     />
                   </View>
-                  
+
                   {review.review && (
                     <Text style={styles.reviewText}>{review.review}</Text>
                   )}
-                  
+
                   {review.photos && review.photos.length > 0 && (
-                    <ScrollView 
-                      horizontal 
+                    <ScrollView
+                      horizontal
                       showsHorizontalScrollIndicator={false}
                       style={styles.reviewPhotoScroll}
                     >
@@ -654,7 +708,7 @@ export const PizzeriaDetailScreen: React.FC = () => {
                           key={`review-photo-${index}`}
                           onPress={() => setFullScreenPhoto(photo)}
                         >
-                          <Image 
+                          <Image
                             source={{ uri: photo }}
                             style={styles.reviewPhoto}
                           />
@@ -662,7 +716,7 @@ export const PizzeriaDetailScreen: React.FC = () => {
                       ))}
                     </ScrollView>
                   )}
-                  
+
                   <Text style={styles.reviewDate}>
                     {new Date(review.created_at).toLocaleDateString()}
                   </Text>
@@ -671,7 +725,11 @@ export const PizzeriaDetailScreen: React.FC = () => {
             </View>
           ) : (
             <View style={styles.emptyReviews}>
-              <Ionicons name="chatbubble-outline" size={48} color={COLORS.textLight} />
+              <Ionicons
+                name="chatbubble-outline"
+                size={48}
+                color={COLORS.textLight}
+              />
               <Text style={styles.emptyReviewsText}>No reviews yet</Text>
               <Text style={styles.emptyReviewsSubtext}>
                 Be the first to review this pizzeria!
@@ -680,7 +738,7 @@ export const PizzeriaDetailScreen: React.FC = () => {
           )}
         </View>
       </ScrollView>
-      
+
       {/* Full Screen Photo Modal */}
       <Modal
         visible={!!fullScreenPhoto}
@@ -689,15 +747,15 @@ export const PizzeriaDetailScreen: React.FC = () => {
         onRequestClose={() => setFullScreenPhoto(null)}
       >
         <View style={styles.photoModal}>
-          <TouchableOpacity 
+          <TouchableOpacity
             style={styles.closeButton}
             onPress={() => setFullScreenPhoto(null)}
           >
             <Ionicons name="close" size={30} color={COLORS.white} />
           </TouchableOpacity>
-          
+
           {fullScreenPhoto && (
-            <Image 
+            <Image
               source={{ uri: fullScreenPhoto }}
               style={styles.fullScreenPhoto}
               resizeMode="contain"
@@ -705,7 +763,7 @@ export const PizzeriaDetailScreen: React.FC = () => {
           )}
         </View>
       </Modal>
-      
+
       {/* Review Modal */}
       {pizzeria && (
         <ReviewModal
@@ -731,9 +789,9 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.lg,
   },
   headerRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: SPACING.xs,
   },
   title: {
@@ -837,35 +895,6 @@ const styles = StyleSheet.create({
     fontSize: 12,
     marginTop: SPACING.xs / 2,
   },
-  rateButton: {
-    marginTop: SPACING.md,
-    backgroundColor: COLORS.primary,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    borderRadius: BORDER_RADIUS.md,
-    alignSelf: "flex-start",
-  },
-  rateButtonText: {
-    color: COLORS.white,
-    fontWeight: "600",
-  },
-  ratingInputContainer: {
-    marginTop: SPACING.md,
-    backgroundColor: "#fff",
-    borderRadius: BORDER_RADIUS.md,
-    padding: SPACING.md,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 2,
-  },
-  ratingInputTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: COLORS.text,
-    marginBottom: SPACING.sm,
-  },
   contactButtons: {
     flexDirection: "row",
     marginVertical: SPACING.md,
@@ -915,9 +944,6 @@ const styles = StyleSheet.create({
     color: COLORS.primary,
     fontWeight: "600",
   },
-  doughStylesSection: {
-    marginBottom: SPACING.lg,
-  },
   doughStylesContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
@@ -930,12 +956,6 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md,
     minWidth: 150,
     marginBottom: SPACING.sm,
-  },
-  doughStyleTag: {
-    backgroundColor: COLORS.primary + "20", // 20% opacity
-    paddingVertical: SPACING.xs,
-    paddingHorizontal: SPACING.sm,
-    borderRadius: BORDER_RADIUS.round,
   },
   doughStyleText: {
     color: COLORS.primaryDark,

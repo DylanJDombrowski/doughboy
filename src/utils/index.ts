@@ -1,7 +1,15 @@
 // src/utils/index.ts
-export * from './rating';
-export * from './pizzeriaRating';
-export * from './savedPizzeria';
+export * from "./rating";
+export * from "./pizzeriaRating";
+export * from "./savedPizzeria";
+
+// Re-export specific functions that are being imported
+export { createOrUpdateRating, getRatingStats } from "./rating";
+
+export {
+  createOrUpdatePizzeriaRating,
+  getPizzeriaRatingStats,
+} from "./pizzeriaRating";
 
 export const formatTime = (minutes: number): string => {
   if (minutes < 60) {

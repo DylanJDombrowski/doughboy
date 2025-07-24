@@ -28,9 +28,12 @@ export const createOrUpdatePizzeriaRating = async (
   try {
     // Validate inputs
     if (ratingInput.overall_rating < 1 || ratingInput.overall_rating > 5) {
-      return { success: false, error: "Overall rating must be between 1 and 5" };
+      return {
+        success: false,
+        error: "Overall rating must be between 1 and 5",
+      };
     }
-    
+
     if (ratingInput.crust_rating < 1 || ratingInput.crust_rating > 5) {
       return { success: false, error: "Crust rating must be between 1 and 5" };
     }
@@ -49,7 +52,7 @@ export const createOrUpdatePizzeriaRating = async (
     }
 
     let result;
-    
+
     if (existingRatings) {
       // Update existing rating
       const { data, error } = await supabase
@@ -59,7 +62,6 @@ export const createOrUpdatePizzeriaRating = async (
           crust_rating: ratingInput.crust_rating,
           review: ratingInput.review,
           photos: ratingInput.photos,
-          updated_at: new Date().toISOString()
         })
         .eq("id", existingRatings.id)
         .select()
@@ -68,7 +70,7 @@ export const createOrUpdatePizzeriaRating = async (
       if (error) {
         return { success: false, error: error.message };
       }
-      
+
       result = data;
     } else {
       // Create new rating
@@ -80,7 +82,7 @@ export const createOrUpdatePizzeriaRating = async (
           overall_rating: ratingInput.overall_rating,
           crust_rating: ratingInput.crust_rating,
           review: ratingInput.review,
-          photos: ratingInput.photos
+          photos: ratingInput.photos,
         })
         .select()
         .single();
@@ -88,19 +90,19 @@ export const createOrUpdatePizzeriaRating = async (
       if (error) {
         return { success: false, error: error.message };
       }
-      
+
       result = data;
     }
 
-    return { 
-      success: true, 
-      rating: result as PizzeriaRating 
+    return {
+      success: true,
+      rating: result as PizzeriaRating,
     };
   } catch (error) {
     console.error("Error creating/updating pizzeria rating:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Unknown error occurred" 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error occurred",
     };
   }
 };
@@ -112,7 +114,11 @@ export const createOrUpdatePizzeriaRating = async (
  */
 export const getPizzeriaRatingStats = async (
   pizzeriaId: string
-): Promise<{ success: boolean; stats?: PizzeriaRatingStats; error?: string }> => {
+): Promise<{
+  success: boolean;
+  stats?: PizzeriaRatingStats;
+  error?: string;
+}> => {
   try {
     const { data, error } = await supabase
       .from("pizzeria_ratings")
@@ -124,24 +130,24 @@ export const getPizzeriaRatingStats = async (
     }
 
     if (!data || data.length === 0) {
-      return { 
-        success: true, 
+      return {
+        success: true,
         stats: {
           average_overall_rating: 0,
           average_crust_rating: 0,
-          rating_count: 0
-        }
+          rating_count: 0,
+        },
       };
     }
 
     // Calculate average ratings
-    const overall_ratings = data.map(r => r.overall_rating);
-    const crust_ratings = data.map(r => r.crust_rating);
-    
-    const average_overall_rating = 
+    const overall_ratings = data.map((r) => r.overall_rating);
+    const crust_ratings = data.map((r) => r.crust_rating);
+
+    const average_overall_rating =
       overall_ratings.reduce((a, b) => a + b, 0) / overall_ratings.length;
-    
-    const average_crust_rating = 
+
+    const average_crust_rating =
       crust_ratings.reduce((a, b) => a + b, 0) / crust_ratings.length;
 
     return {
@@ -149,14 +155,14 @@ export const getPizzeriaRatingStats = async (
       stats: {
         average_overall_rating,
         average_crust_rating,
-        rating_count: data.length
-      }
+        rating_count: data.length,
+      },
     };
   } catch (error) {
     console.error("Error getting pizzeria rating stats:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Unknown error occurred" 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error occurred",
     };
   }
 };
@@ -180,7 +186,8 @@ export const getUserPizzeriaRating = async (
       .single();
 
     if (error) {
-      if (error.code === "PGRST116") { // No rows returned
+      if (error.code === "PGRST116") {
+        // No rows returned
         return { success: true, rating: undefined };
       }
       throw error;
@@ -188,13 +195,13 @@ export const getUserPizzeriaRating = async (
 
     return {
       success: true,
-      rating: data as PizzeriaRating
+      rating: data as PizzeriaRating,
     };
   } catch (error) {
     console.error("Error getting user pizzeria rating:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Unknown error occurred" 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error occurred",
     };
   }
 };
@@ -242,9 +249,9 @@ export const deletePizzeriaRating = async (
     return { success: true };
   } catch (error) {
     console.error("Error deleting pizzeria rating:", error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : "Unknown error occurred" 
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : "Unknown error occurred",
     };
   }
 };

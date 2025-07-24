@@ -1,4 +1,4 @@
-// src/screens/tabs/RecipesScreen.tsx - Fixed TypeScript errors
+// src/screens/tabs/RecipesScreen.tsx - Final Fix
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -13,10 +13,30 @@ import { Recipe } from "../../types";
 import { supabase } from "../../services/supabase";
 import { useAuth } from "../../contexts/AuthContext";
 
+// Create a flexible interface for recipes from database
+interface RecipeFromDB {
+  id: string;
+  user_id: string;
+  title: string;
+  description?: string | null;
+  category: string;
+  difficulty: number;
+  total_time_minutes: number;
+  servings: number;
+  hydration_percentage?: number | null;
+  is_featured: boolean | null;
+  is_public: boolean | null;
+  photos?: string[] | null;
+  created_at: string;
+  updated_at: string;
+  ingredients?: Recipe["ingredients"];
+  process_steps?: Recipe["process_steps"];
+}
+
 const RecipesScreen: React.FC = () => {
   const { user } = useAuth();
-  const [recipes, setRecipes] = useState<Recipe[]>([]);
-  const [savedRecipes, setSavedRecipes] = useState<Recipe[]>([]);
+  const [recipes, setRecipes] = useState<RecipeFromDB[]>([]);
+  const [savedRecipes, setSavedRecipes] = useState<RecipeFromDB[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"my" | "saved">("my");
 
@@ -38,7 +58,15 @@ const RecipesScreen: React.FC = () => {
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      setRecipes(data || []);
+
+      // Transform the data to match our interface
+      const transformedRecipes: RecipeFromDB[] = (data || []).map((recipe) => ({
+        ...recipe,
+        ingredients: undefined,
+        process_steps: undefined,
+      }));
+
+      setRecipes(transformedRecipes);
     } catch (error) {
       console.error("Error fetching recipes:", error);
       setRecipes([]);
@@ -68,7 +96,17 @@ const RecipesScreen: React.FC = () => {
           .in("id", recipeIds);
 
         if (recipesError) throw recipesError;
-        setSavedRecipes(recipes || []);
+
+        // Transform the data to match our interface
+        const transformedRecipes: RecipeFromDB[] = (recipes || []).map(
+          (recipe) => ({
+            ...recipe,
+            ingredients: undefined,
+            process_steps: undefined,
+          })
+        );
+
+        setSavedRecipes(transformedRecipes);
       } else {
         setSavedRecipes([]);
       }
@@ -78,7 +116,7 @@ const RecipesScreen: React.FC = () => {
     }
   };
 
-  const renderRecipe = ({ item }: { item: Recipe }) => (
+  const renderRecipe = ({ item }: { item: RecipeFromDB }) => (
     <TouchableOpacity style={styles.recipeCard}>
       <View style={styles.recipeContent}>
         <Text style={styles.recipeTitle}>{item.title}</Text>

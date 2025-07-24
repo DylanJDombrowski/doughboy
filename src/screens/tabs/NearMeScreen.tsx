@@ -15,15 +15,7 @@ import { useLocation } from "../../contexts/LocationContext";
 import { supabase } from "../../services/supabase";
 import { DualRatingDisplay } from "../../components/ratings";
 import { COLORS, SPACING } from "../../constants";
-import { Pizzeria } from "../../types";
-
-interface PizzeriaWithDistance extends Pizzeria {
-  distance: number;
-  pizzeria_dough_styles?: Pizzeria["pizzeria_dough_styles"];
-  average_overall_rating?: number; // renamed from average_rating
-  average_crust_rating?: number;
-  rating_count?: number;
-}
+import { PizzeriaWithDistance } from "../../types";
 
 const NearMeScreen: React.FC = () => {
   const {
@@ -72,27 +64,54 @@ const NearMeScreen: React.FC = () => {
 
         // Combine data and calculate average ratings
         const pizzeriasWithStyles = pizzerias.map((pizzeria) => {
-          const pizzeriaRatings = ratings?.filter(r => r.pizzeria_id === pizzeria.id) || [];
+          const pizzeriaRatings =
+            ratings?.filter((r) => r.pizzeria_id === pizzeria.id) || [];
           const ratingCount = pizzeriaRatings.length;
-          
-          // Calculate average ratings if ratings exist
-          const average_overall_rating = ratingCount > 0 
-            ? pizzeriaRatings.reduce((sum, r) => sum + r.overall_rating, 0) / ratingCount 
-            : 0;
-            
-          const average_crust_rating = ratingCount > 0 
-            ? pizzeriaRatings.reduce((sum, r) => sum + (r.crust_rating || 0), 0) / ratingCount 
-            : 0;
 
-          return {
-            ...pizzeria,
+          // Calculate average ratings if ratings exist
+          const average_overall_rating =
+            ratingCount > 0
+              ? pizzeriaRatings.reduce((sum, r) => sum + r.overall_rating, 0) /
+                ratingCount
+              : 0;
+
+          const average_crust_rating =
+            ratingCount > 0
+              ? pizzeriaRatings.reduce(
+                  (sum, r) => sum + (r.crust_rating || 0),
+                  0
+                ) / ratingCount
+              : 0;
+
+          // Transform to ensure compatibility - keep null values as they are
+          const transformedPizzeria: PizzeriaWithDistance = {
+            ...pizzeria, // Keep all original fields including nulls
+            phone: pizzeria.phone || undefined, // Convert null to undefined for display
+            website: pizzeria.website || undefined, // Convert null to undefined for display
+            verified: pizzeria.verified ?? false, // Convert null to false for display
+            dough_styles:
+              doughStyles
+                ?.filter((style) => style.pizzeria_id === pizzeria.id)
+                .map((style) => ({
+                  ...style,
+                  dough_style:
+                    style.dough_style as import("../../types").DoughCategory,
+                })) || [],
             pizzeria_dough_styles:
-              doughStyles?.filter((style) => style.pizzeria_id === pizzeria.id) ||
-              [],
+              doughStyles
+                ?.filter((style) => style.pizzeria_id === pizzeria.id)
+                .map((style) => ({
+                  ...style,
+                  dough_style:
+                    style.dough_style as import("../../types").DoughCategory,
+                })) || [],
             average_overall_rating,
             average_crust_rating,
-            rating_count: ratingCount
+            rating_count: ratingCount,
+            distance: 0, // Will be calculated below
           };
+
+          return transformedPizzeria;
         });
 
         // Calculate distances and filter
@@ -150,10 +169,10 @@ const NearMeScreen: React.FC = () => {
           <Text style={styles.pizzeriaDistance}>
             {item.distance.toFixed(1)} miles away
           </Text>
-          
+
           {/* Add dual rating display */}
-          {((item.average_overall_rating && item.average_overall_rating > 0) || 
-             (item.average_crust_rating && item.average_crust_rating > 0)) && (
+          {((item.average_overall_rating && item.average_overall_rating > 0) ||
+            (item.average_crust_rating && item.average_crust_rating > 0)) && (
             <View style={styles.ratingWrapper}>
               <DualRatingDisplay
                 overallRating={item.average_overall_rating || 0}
@@ -172,11 +191,11 @@ const NearMeScreen: React.FC = () => {
         )}
       </View>
 
-      {item.pizzeria_dough_styles && item.pizzeria_dough_styles.length > 0 && (
+      {item.dough_styles && item.dough_styles.length > 0 && (
         <View>
           <Text style={styles.doughStylesLabel}>Dough Styles:</Text>
           <View style={styles.doughStylesContainer}>
-            {item.pizzeria_dough_styles.map((style, index) => (
+            {item.dough_styles.map((style, index) => (
               <View key={index} style={styles.doughStyleTag}>
                 <Text style={styles.doughStyleText}>
                   {style.dough_style.replace("_", " ")}

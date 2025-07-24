@@ -1,4 +1,4 @@
-// src/screens/tabs/DiscoverScreen.tsx - Fixed TypeScript errors
+// src/screens/tabs/DiscoverScreen.tsx - Final Fix
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -12,9 +12,26 @@ import {
 import { Recipe } from "../../types";
 import { supabase } from "../../services/supabase";
 
-interface RecipeWithRating extends Recipe {
+// Create a more flexible interface for recipes from the database
+interface RecipeWithRating {
+  id: string;
+  user_id: string;
+  title: string;
+  description?: string | null;
+  category: string;
+  difficulty: number;
+  total_time_minutes: number;
+  servings: number;
+  hydration_percentage?: number | null;
+  is_featured: boolean | null;
+  is_public: boolean | null;
+  photos?: string[] | null;
+  created_at: string;
+  updated_at: string;
   average_overall_rating?: number;
   recipe_ratings?: { overall_rating: number; crust_rating: number }[];
+  ingredients?: Recipe["ingredients"];
+  process_steps?: Recipe["process_steps"];
 }
 
 const DiscoverScreen: React.FC = () => {
@@ -53,18 +70,24 @@ const DiscoverScreen: React.FC = () => {
           .in("recipe_id", recipeIds);
 
         // Calculate average ratings
-        const recipesWithRatings = recipes.map((recipe) => {
+        const recipesWithRatings: RecipeWithRating[] = recipes.map((recipe) => {
           const recipeRatings =
             ratings?.filter((r) => r.recipe_id === recipe.id) || [];
           const average_overall_rating =
             recipeRatings.length > 0
               ? recipeRatings.reduce(
-                  (sum: number, r: { overall_rating: number }) => sum + r.overall_rating,
+                  (sum: number, r: { overall_rating: number }) =>
+                    sum + r.overall_rating,
                   0
                 ) / recipeRatings.length
               : 0;
 
-          return { ...recipe, average_overall_rating };
+          return {
+            ...recipe,
+            average_overall_rating,
+            ingredients: undefined,
+            process_steps: undefined,
+          } as RecipeWithRating;
         });
 
         setRecipes(recipesWithRatings);
@@ -97,7 +120,9 @@ const DiscoverScreen: React.FC = () => {
           <Text style={styles.time}>{item.total_time_minutes} min</Text>
         </View>
         {item.average_overall_rating && item.average_overall_rating > 0 && (
-          <Text style={styles.rating}>⭐ {item.average_overall_rating.toFixed(1)}</Text>
+          <Text style={styles.rating}>
+            ⭐ {item.average_overall_rating.toFixed(1)}
+          </Text>
         )}
       </View>
     </TouchableOpacity>

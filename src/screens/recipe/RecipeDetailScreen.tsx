@@ -1,14 +1,14 @@
 // src/screens/recipe/RecipeDetailScreen.tsx
 import React, { useEffect, useState } from "react";
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  SafeAreaView, 
-  ScrollView, 
-  TouchableOpacity, 
+import {
+  View,
+  Text,
+  StyleSheet,
+  SafeAreaView,
+  ScrollView,
+  TouchableOpacity,
   Image,
-  Alert
+  Alert,
 } from "react-native";
 import { useLocalSearchParams } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -16,7 +16,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { supabase } from "../../services/supabase";
 import { Recipe } from "../../types";
 import { DualRatingDisplay, DualRatingInput } from "../../components/ratings";
-import { createOrUpdateRating, getRatingStats } from "../../utils";
+import { createOrUpdateRating, getRatingStats } from "../../utils/rating"; // Import from specific file
 import { COLORS, SPACING, BORDER_RADIUS } from "../../constants";
 
 const RecipeDetailScreen: React.FC = () => {
@@ -45,7 +45,7 @@ const RecipeDetailScreen: React.FC = () => {
 
       // Get ratings
       const { success, stats } = await getRatingStats(recipeId);
-      
+
       if (success && stats) {
         setRecipe({
           ...data,
@@ -63,7 +63,10 @@ const RecipeDetailScreen: React.FC = () => {
     }
   };
 
-  const handleRatingSubmit = async (overallRating: number, crustRating: number) => {
+  const handleRatingSubmit = async (
+    overallRating: number,
+    crustRating: number
+  ) => {
     if (!user || !recipe) return;
 
     try {
@@ -112,11 +115,11 @@ const RecipeDetailScreen: React.FC = () => {
       <ScrollView contentContainerStyle={styles.content}>
         <View style={styles.header}>
           <Text style={styles.title}>{recipe.title}</Text>
-          
+
           {recipe.description && (
             <Text style={styles.description}>{recipe.description}</Text>
           )}
-          
+
           <View style={styles.ratingSection}>
             <DualRatingDisplay
               overallRating={recipe.average_overall_rating || 0}
@@ -124,9 +127,9 @@ const RecipeDetailScreen: React.FC = () => {
               ratingCount={recipe.ratings?.length || 0}
               size={18}
             />
-            
+
             {user && (
-              <TouchableOpacity 
+              <TouchableOpacity
                 style={styles.rateButton}
                 onPress={() => setShowRatingInput(!showRatingInput)}
               >
@@ -136,18 +139,18 @@ const RecipeDetailScreen: React.FC = () => {
               </TouchableOpacity>
             )}
           </View>
-          
+
           {showRatingInput && (
             <View style={styles.ratingInputContainer}>
-              <DualRatingInput
-                onRatingChange={handleRatingSubmit}
-              />
+              <DualRatingInput onRatingChange={handleRatingSubmit} />
             </View>
           )}
         </View>
-        
+
         {/* Recipe content would go here */}
-        <Text style={styles.comingSoon}>Full recipe details coming soon...</Text>
+        <Text style={styles.comingSoon}>
+          Full recipe details coming soon...
+        </Text>
       </ScrollView>
     </SafeAreaView>
   );
