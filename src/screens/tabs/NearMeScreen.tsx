@@ -1,4 +1,4 @@
-// src/screens/tabs/NearMeScreen.tsx - Completely clean version
+// src/screens/tabs/NearMeScreen.tsx
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -12,12 +12,17 @@ import {
 import MapView, { Marker } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
 import { useLocation } from "../../contexts/LocationContext";
-import { Pizzeria } from "../../types";
 import { supabase } from "../../services/supabase";
+import { DualRatingDisplay } from "../../components/ratings";
+import { COLORS, SPACING } from "../../constants";
+import { Pizzeria } from "../../types";
 
 interface PizzeriaWithDistance extends Pizzeria {
   distance: number;
   pizzeria_dough_styles?: Pizzeria["pizzeria_dough_styles"];
+  average_overall_rating?: number; // renamed from average_rating
+  average_crust_rating?: number;
+  rating_count?: number;
 }
 
 const NearMeScreen: React.FC = () => {
@@ -59,13 +64,36 @@ const NearMeScreen: React.FC = () => {
           .in("pizzeria_id", pizzeriaIds)
           .eq("status", "approved");
 
-        // Combine data
-        const pizzeriasWithStyles = pizzerias.map((pizzeria) => ({
-          ...pizzeria,
-          pizzeria_dough_styles:
-            doughStyles?.filter((style) => style.pizzeria_id === pizzeria.id) ||
-            [],
-        }));
+        // Get ratings for each pizzeria
+        const { data: ratings } = await supabase
+          .from("recipe_ratings")
+          .select("*")
+          .in("recipe_id", pizzeriaIds);
+
+        // Combine data and calculate average ratings
+        const pizzeriasWithStyles = pizzerias.map((pizzeria) => {
+          const pizzeriaRatings = ratings?.filter(r => r.recipe_id === pizzeria.id) || [];
+          const ratingCount = pizzeriaRatings.length;
+          
+          // Calculate average ratings if ratings exist
+          const average_overall_rating = ratingCount > 0 
+            ? pizzeriaRatings.reduce((sum, r) => sum + r.overall_rating, 0) / ratingCount 
+            : 0;
+            
+          const average_crust_rating = ratingCount > 0 
+            ? pizzeriaRatings.reduce((sum, r) => sum + (r.crust_rating || 0), 0) / ratingCount 
+            : 0;
+
+          return {
+            ...pizzeria,
+            pizzeria_dough_styles:
+              doughStyles?.filter((style) => style.pizzeria_id === pizzeria.id) ||
+              [],
+            average_overall_rating,
+            average_crust_rating,
+            rating_count: ratingCount
+          };
+        });
 
         // Calculate distances and filter
         const pizzeriasWithDistance = pizzeriasWithStyles
@@ -122,6 +150,19 @@ const NearMeScreen: React.FC = () => {
           <Text style={styles.pizzeriaDistance}>
             {item.distance.toFixed(1)} miles away
           </Text>
+          
+          {/* Add dual rating display */}
+          {((item.average_overall_rating && item.average_overall_rating > 0) || 
+             (item.average_crust_rating && item.average_crust_rating > 0)) && (
+            <View style={styles.ratingWrapper}>
+              <DualRatingDisplay
+                overallRating={item.average_overall_rating || 0}
+                crustRating={item.average_crust_rating || 0}
+                compact={true}
+                ratingCount={item.rating_count}
+              />
+            </View>
+          )}
         </View>
         {item.verified && (
           <View style={styles.verifiedBadge}>
@@ -132,7 +173,7 @@ const NearMeScreen: React.FC = () => {
       </View>
 
       {item.pizzeria_dough_styles && item.pizzeria_dough_styles.length > 0 && (
-        <View style={styles.doughStyles}>
+        <View>
           <Text style={styles.doughStylesLabel}>Dough Styles:</Text>
           <View style={styles.doughStylesContainer}>
             {item.pizzeria_dough_styles.map((style, index) => (
@@ -227,14 +268,13 @@ const NearMeScreen: React.FC = () => {
       {viewMode === "map" ? (
         <MapView
           style={styles.map}
-          region={{
+          initialRegion={{
             latitude: location.coords.latitude,
             longitude: location.coords.longitude,
-            latitudeDelta: 0.1,
-            longitudeDelta: 0.1,
+            latitudeDelta: 0.0922,
+            longitudeDelta: 0.0421,
           }}
           showsUserLocation
-          showsMyLocationButton
         >
           {pizzerias.map((pizzeria) => (
             <Marker
@@ -250,20 +290,24 @@ const NearMeScreen: React.FC = () => {
         </MapView>
       ) : (
         <FlatList
+          style={styles.list}
           data={pizzerias}
           renderItem={renderPizzeria}
           keyExtractor={(item) => item.id}
-          refreshing={loading}
-          onRefresh={fetchNearbyPizzerias}
-          contentContainerStyle={styles.list}
           ListEmptyComponent={
-            <View style={styles.emptyContainer}>
-              <Ionicons name="restaurant-outline" size={48} color="#666" />
-              <Text style={styles.emptyText}>No pizzerias found nearby</Text>
-              <Text style={styles.emptySubtext}>
-                Be the first to add pizzerias in your area!
-              </Text>
-            </View>
+            loading ? (
+              <View style={styles.loadingContainer}>
+                <Text style={styles.loadingText}>Loading pizzerias...</Text>
+              </View>
+            ) : (
+              <View style={styles.emptyContainer}>
+                <Ionicons name="pizza-outline" size={48} color="#666" />
+                <Text style={styles.emptyText}>No pizzerias found nearby</Text>
+                <Text style={styles.emptySubtext}>
+                  Try expanding your search or try a different location
+                </Text>
+              </View>
+            )
           }
         />
       )}
@@ -274,49 +318,7 @@ const NearMeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
-  },
-  header: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: "#FFF",
-  },
-  title: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#8B4513",
-    marginBottom: 4,
-  },
-  subtitle: {
-    fontSize: 14,
-    color: "#666",
-    marginBottom: 16,
-  },
-  viewToggle: {
-    flexDirection: "row",
-    backgroundColor: "#F0F0F0",
-    borderRadius: 8,
-    padding: 4,
-  },
-  toggleButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 8,
-    borderRadius: 6,
-    gap: 6,
-  },
-  toggleButtonActive: {
-    backgroundColor: "#D4A574",
-  },
-  toggleText: {
-    fontSize: 14,
-    color: "#666",
-    fontWeight: "500",
-  },
-  toggleTextActive: {
-    color: "#FFF",
+    backgroundColor: "#f8f8f8",
   },
   map: {
     flex: 1,
@@ -357,7 +359,10 @@ const styles = StyleSheet.create({
   },
   pizzeriaDistance: {
     fontSize: 12,
-    color: "#999",
+    color: "#666",
+  },
+  ratingWrapper: {
+    marginTop: SPACING.xs,
   },
   verifiedBadge: {
     flexDirection: "row",
@@ -369,39 +374,72 @@ const styles = StyleSheet.create({
     color: "#4CAF50",
     fontWeight: "500",
   },
-  doughStyles: {
-    borderTopWidth: 1,
-    borderTopColor: "#F0F0F0",
-    paddingTop: 12,
-  },
   doughStylesLabel: {
     fontSize: 14,
     fontWeight: "500",
-    color: "#333",
-    marginBottom: 8,
+    color: "#666",
+    marginBottom: 4,
   },
   doughStylesContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    gap: 6,
+    gap: 8,
   },
   doughStyleTag: {
-    backgroundColor: "#E8F5E8",
+    backgroundColor: "#f0f0f0",
     paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 12,
+    borderRadius: 4,
   },
   doughStyleText: {
     fontSize: 12,
-    color: "#4CAF50",
-    fontWeight: "500",
-    textTransform: "capitalize",
+    color: "#666",
+  },
+  header: {
+    padding: 16,
+    backgroundColor: "#FFF",
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "700",
+    color: "#333",
+  },
+  subtitle: {
+    fontSize: 14,
+    color: "#666",
+    marginTop: 4,
+  },
+  viewToggle: {
+    flexDirection: "row",
+    backgroundColor: "#f0f0f0",
+    borderRadius: 8,
+    marginTop: 16,
+    padding: 4,
+  },
+  toggleButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 8,
+    borderRadius: 6,
+  },
+  toggleButtonActive: {
+    backgroundColor: COLORS.primary,
+  },
+  toggleText: {
+    marginLeft: 4,
+    fontSize: 14,
+    color: "#666",
+  },
+  toggleTextActive: {
+    color: "#FFF",
   },
   errorContainer: {
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    paddingHorizontal: 40,
+    padding: 32,
   },
   errorText: {
     fontSize: 18,

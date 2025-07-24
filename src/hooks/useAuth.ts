@@ -1,8 +1,14 @@
 // src/hooks/useAuth.ts
 import { useState } from "react";
+import { useContext } from "react";
+import { AuthContext } from "../contexts/AuthContext";
 import { supabase } from "../services/supabase";
 import * as AppleAuthentication from "expo-apple-authentication";
 import { Platform } from "react-native";
+
+export const useAuth = () => {
+  return useContext(AuthContext);
+};
 
 export const useAuthActions = () => {
   const [loading, setLoading] = useState(false);

@@ -17,7 +17,8 @@ export interface Recipe {
   ingredients: Ingredient[];
   process_steps: ProcessStep[];
   ratings?: RecipeRating[];
-  average_rating?: number;
+  average_overall_rating?: number; // renamed from average_rating
+  average_crust_rating?: number;
   created_at: string;
   updated_at: string;
 }
@@ -47,7 +48,8 @@ export interface RecipeRating {
   id: string;
   recipe_id: string;
   user_id: string;
-  rating: number;
+  overall_rating: number; // renamed from rating
+  crust_rating: number;
   review?: string;
   photos?: string[];
   created_at: string;
@@ -64,6 +66,9 @@ export interface Pizzeria {
   verified: boolean;
   dough_styles: PizzeriaDoughStyle[];
   pizzeria_dough_styles?: PizzeriaDoughStyle[];
+  average_overall_rating?: number; // renamed from average_rating
+  average_crust_rating?: number;
+  rating_count?: number;
   created_at: string;
 }
 

@@ -168,7 +168,8 @@ export interface Database {
           id: string;
           recipe_id: string;
           user_id: string;
-          rating: number;
+          overall_rating: number; // renamed from rating
+          crust_rating: number; 
           review: string | null;
           photos: string[] | null;
           created_at: string;
@@ -177,7 +178,8 @@ export interface Database {
           id?: string;
           recipe_id: string;
           user_id: string;
-          rating: number;
+          overall_rating: number; // renamed from rating
+          crust_rating: number;
           review?: string | null;
           photos?: string[] | null;
           created_at?: string;
@@ -186,9 +188,10 @@ export interface Database {
           id?: string;
           recipe_id?: string;
           user_id?: string;
-          rating?: number;
+          overall_rating?: number; // renamed from rating
+          crust_rating?: number;
           review?: string | null;
-          photos?: string[] | null;
+          photos?: string | null;
           created_at?: string;
         };
       };

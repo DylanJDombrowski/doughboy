@@ -1,4 +1,6 @@
 // src/utils/index.ts
+export * from './rating';
+
 export const formatTime = (minutes: number): string => {
   if (minutes < 60) {
     return `${minutes} min`;
