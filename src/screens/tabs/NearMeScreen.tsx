@@ -170,9 +170,11 @@ const NearMeScreen: React.FC = () => {
             {item.distance.toFixed(1)} miles away
           </Text>
 
-          {/* Add dual rating display */}
-          {((item.average_overall_rating && item.average_overall_rating > 0) ||
-            (item.average_crust_rating && item.average_crust_rating > 0)) && (
+          {/* FIX: Add proper null checks for rating display */}
+          {((item.average_overall_rating != null &&
+            item.average_overall_rating > 0) ||
+            (item.average_crust_rating != null &&
+              item.average_crust_rating > 0)) && (
             <View style={styles.ratingWrapper}>
               <DualRatingDisplay
                 overallRating={item.average_overall_rating || 0}
@@ -183,7 +185,8 @@ const NearMeScreen: React.FC = () => {
             </View>
           )}
         </View>
-        {item.verified && (
+        {/* FIX: Changed from item.verified && to !!item.verified && */}
+        {!!item.verified && (
           <View style={styles.verifiedBadge}>
             <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
             <Text style={styles.verifiedText}>Verified</Text>
@@ -191,6 +194,7 @@ const NearMeScreen: React.FC = () => {
         )}
       </View>
 
+      {/* FIX: Better array length check */}
       {item.dough_styles && item.dough_styles.length > 0 && (
         <View>
           <Text style={styles.doughStylesLabel}>Dough Styles:</Text>
@@ -207,7 +211,6 @@ const NearMeScreen: React.FC = () => {
       )}
     </TouchableOpacity>
   );
-
   if (locationError) {
     return (
       <SafeAreaView style={styles.container}>
@@ -236,7 +239,9 @@ const NearMeScreen: React.FC = () => {
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>Near Me</Text>
-        <Text style={styles.subtitle}>{address}</Text>
+        <Text style={styles.subtitle}>
+          {address ? <Text style={styles.subtitle}>{address}</Text> : null}
+        </Text>
 
         <View style={styles.viewToggle}>
           <TouchableOpacity

@@ -1,9 +1,17 @@
 // src/components/pizzeria/ActionButtons.tsx
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Share, Linking, Platform } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, BORDER_RADIUS } from '../../constants';
-import { Pizzeria } from '../../types';
+import React from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Share,
+  Linking,
+  Platform,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { COLORS, SPACING, BORDER_RADIUS } from "../../constants";
+import { Pizzeria } from "../../types";
 
 interface ActionButtonsProps {
   pizzeria: Pizzeria;
@@ -18,7 +26,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
   isSaved,
   onToggleSave,
   onWriteReview,
-  distance
+  distance,
 }) => {
   const handleShare = async () => {
     try {
@@ -28,15 +36,15 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
         title: `${pizzeria.name} on Doughboy`,
       });
     } catch (error) {
-      console.error('Error sharing pizzeria:', error);
+      console.error("Error sharing pizzeria:", error);
     }
   };
 
   const handleGetDirections = () => {
     const { latitude, longitude, address, name } = pizzeria;
-    let url = '';
+    let url = "";
 
-    if (Platform.OS === 'ios') {
+    if (Platform.OS === "ios") {
       url = `maps:?q=${name}&ll=${latitude},${longitude}`;
     } else {
       // Android
@@ -55,7 +63,7 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
           );
         }
       })
-      .catch((err) => console.error('Error opening maps:', err));
+      .catch((err) => console.error("Error opening maps:", err));
   };
 
   return (
@@ -69,8 +77,10 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
           size={20}
           color={isSaved ? COLORS.white : COLORS.primary}
         />
-        <Text style={[styles.buttonText, isSaved ? styles.savedButtonText : {}]}>
-          {isSaved ? 'Saved' : 'Save'}
+        <Text
+          style={[styles.buttonText, isSaved ? styles.savedButtonText : {}]}
+        >
+          {isSaved ? "Saved" : "Save"}
         </Text>
       </TouchableOpacity>
 
@@ -80,11 +90,16 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
       </TouchableOpacity>
 
       <TouchableOpacity onPress={handleShare} style={styles.button}>
-        <Ionicons name="share-social-outline" size={20} color={COLORS.primary} />
+        <Ionicons
+          name="share-social-outline"
+          size={20}
+          color={COLORS.primary}
+        />
         <Text style={styles.buttonText}>Share</Text>
       </TouchableOpacity>
 
-      {distance !== null && distance !== undefined && (
+      {/* FIX: Changed from distance !== null && distance !== undefined to distance != null */}
+      {distance != null && (
         <TouchableOpacity onPress={handleGetDirections} style={styles.button}>
           <Ionicons name="navigate-outline" size={20} color={COLORS.primary} />
           <Text style={styles.buttonText}>Directions</Text>
@@ -96,17 +111,17 @@ const ActionButtons: React.FC<ActionButtonsProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     padding: SPACING.md,
     backgroundColor: COLORS.white,
     borderRadius: BORDER_RADIUS.md,
     marginBottom: SPACING.md,
   },
   button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: SPACING.sm,
     paddingHorizontal: SPACING.md,
     backgroundColor: COLORS.secondary,
@@ -118,7 +133,7 @@ const styles = StyleSheet.create({
   buttonText: {
     marginLeft: SPACING.xs,
     color: COLORS.primary,
-    fontWeight: '500',
+    fontWeight: "500",
     fontSize: 14,
   },
   savedButton: {

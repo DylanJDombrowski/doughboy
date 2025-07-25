@@ -1,8 +1,14 @@
 // src/components/pizzeria/PizzeriaHeader.tsx
-import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Linking } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, BORDER_RADIUS } from '../../constants';
+import React from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Linking,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { COLORS, SPACING, BORDER_RADIUS } from "../../constants";
 
 interface PizzeriaHeaderProps {
   name: string;
@@ -29,7 +35,9 @@ const PizzeriaHeader: React.FC<PizzeriaHeaderProps> = ({
 
   const handleWebsite = () => {
     if (website) {
-      Linking.openURL(website.startsWith('http') ? website : `https://${website}`);
+      Linking.openURL(
+        website.startsWith("http") ? website : `https://${website}`
+      );
     }
   };
 
@@ -37,29 +45,43 @@ const PizzeriaHeader: React.FC<PizzeriaHeaderProps> = ({
     <View style={styles.container}>
       <View style={styles.nameContainer}>
         <Text style={styles.name}>{name}</Text>
-        {verified && (
-          <Ionicons name="checkmark-circle" size={24} color={COLORS.primary} style={styles.verifiedIcon} />
+        {/* FIX: Changed from verified && to !!verified && for boolean safety */}
+        {!!verified && (
+          <Ionicons
+            name="checkmark-circle"
+            size={24}
+            color={COLORS.primary}
+            style={styles.verifiedIcon}
+          />
         )}
       </View>
-      
+
       <View style={styles.addressContainer}>
-        <Ionicons name="location" size={18} color={COLORS.text} style={styles.icon} />
+        <Ionicons
+          name="location"
+          size={18}
+          color={COLORS.text}
+          style={styles.icon}
+        />
         <Text style={styles.address}>{address}</Text>
       </View>
-      
-      {distance !== null && distance !== undefined && (
+
+      {/* FIX: Changed from distance !== null && distance !== undefined to distance != null */}
+      {distance != null && (
         <Text style={styles.distance}>{distance.toFixed(1)} miles away</Text>
       )}
-      
+
       <View style={styles.actionsContainer}>
-        {phone && (
+        {/* FIX: Changed from phone && to !!phone && for string safety */}
+        {!!phone && (
           <TouchableOpacity onPress={handleCall} style={styles.actionButton}>
             <Ionicons name="call" size={20} color={COLORS.primary} />
             <Text style={styles.actionText}>Call</Text>
           </TouchableOpacity>
         )}
-        
-        {website && (
+
+        {/* FIX: Changed from website && to !!website && for string safety */}
+        {!!website && (
           <TouchableOpacity onPress={handleWebsite} style={styles.actionButton}>
             <Ionicons name="globe" size={20} color={COLORS.primary} />
             <Text style={styles.actionText}>Website</Text>
@@ -78,13 +100,13 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   nameContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: SPACING.sm,
   },
   name: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.text,
     flex: 1,
   },
@@ -92,8 +114,8 @@ const styles = StyleSheet.create({
     marginLeft: SPACING.sm,
   },
   addressContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: SPACING.sm,
   },
   icon: {
@@ -110,12 +132,12 @@ const styles = StyleSheet.create({
     marginBottom: SPACING.md,
   },
   actionsContainer: {
-    flexDirection: 'row',
+    flexDirection: "row",
     marginTop: SPACING.sm,
   },
   actionButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     backgroundColor: COLORS.secondary,
     paddingVertical: SPACING.sm,
     paddingHorizontal: SPACING.md,
@@ -125,7 +147,7 @@ const styles = StyleSheet.create({
   actionText: {
     marginLeft: SPACING.xs,
     color: COLORS.primary,
-    fontWeight: '500',
+    fontWeight: "500",
   },
 });
 
