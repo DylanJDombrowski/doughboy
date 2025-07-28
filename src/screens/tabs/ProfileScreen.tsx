@@ -8,17 +8,21 @@ import {
   TouchableOpacity,
   Image,
   Alert,
+  ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../contexts/AuthContext";
-import { User } from "../../types";
+import { User, AchievementProgress } from "../../types";
 import { supabase } from "../../services/supabase";
+import { getUserAchievements } from "../../services/achievementService";
+import { AchievementGrid } from "../../components/achievements";
 
 const ProfileScreen: React.FC = () => {
   const { user, signOut } = useAuth();
   const [profile, setProfile] = useState<User | null>(null);
+  const [achievements, setAchievements] = useState<AchievementProgress[]>([]);
   const [stats, setStats] = useState({
-    recipeCount: 0,
+    pizzeriasVisited: 0,
     savedCount: 0,
     ratingsCount: 0,
   });
@@ -27,6 +31,7 @@ const ProfileScreen: React.FC = () => {
     if (user) {
       fetchProfile();
       fetchStats();
+      fetchAchievements();
     }
   }, [user]);
 
@@ -65,28 +70,53 @@ const ProfileScreen: React.FC = () => {
     if (!user) return;
 
     try {
-      const [recipeRes, savedRes, ratingsRes] = await Promise.all([
+      const [savedRes, ratingsRes, uniquePizzeriasRes] = await Promise.all([
         supabase
-          .from("recipes")
-          .select("id", { count: "exact" })
-          .eq("user_id", user.id),
-        supabase
-          .from("saved_recipes")
-          .select("recipe_id", { count: "exact" })
+          .from("saved_pizzerias")
+          .select("pizzeria_id", { count: "exact" })
           .eq("user_id", user.id),
         supabase
           .from("pizzeria_ratings")
           .select("id", { count: "exact" })
           .eq("user_id", user.id),
+        supabase
+          .from("pizzeria_ratings")
+          .select("pizzeria_id")
+          .eq("user_id", user.id),
       ]);
 
+      // Count unique pizzerias visited
+      const pizzeriaIds = uniquePizzeriasRes.data
+        ? uniquePizzeriasRes.data.map((r) => r.pizzeria_id)
+        : [];
+      const uniquePizzeriaIds: string[] = [];
+      for (const id of pizzeriaIds) {
+        if (uniquePizzeriaIds.indexOf(id) === -1) {
+          uniquePizzeriaIds.push(id);
+        }
+      }
+      const uniquePizzerias = uniquePizzeriaIds.length;
+
       setStats({
-        recipeCount: recipeRes.count || 0,
+        pizzeriasVisited: uniquePizzerias,
         savedCount: savedRes.count || 0,
         ratingsCount: ratingsRes.count || 0,
       });
     } catch (error) {
       console.error("Error fetching stats:", error);
+    }
+  };
+
+  const fetchAchievements = async () => {
+    if (!user) return;
+
+    try {
+      const result = await getUserAchievements(user.id);
+      if (result.success && result.achievements) {
+        setAchievements(result.achievements);
+      }
+    } catch (error) {
+      console.error("Error fetching achievements:", error);
     }
   };
 
@@ -113,71 +143,97 @@ const ProfileScreen: React.FC = () => {
         <Text style={styles.title}>Profile</Text>
       </View>
 
-      <View style={styles.profileSection}>
-        <View style={styles.avatarContainer}>
-          {profile.avatar_url ? (
-            <Image source={{ uri: profile.avatar_url }} style={styles.avatar} />
-          ) : (
-            <View style={styles.avatarPlaceholder}>
-              <Ionicons name="person" size={40} color="#666" />
+      <ScrollView
+        style={styles.scrollContainer}
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.profileSection}>
+          <View style={styles.avatarContainer}>
+            {profile.avatar_url ? (
+              <Image
+                source={{ uri: profile.avatar_url }}
+                style={styles.avatar}
+              />
+            ) : (
+              <View style={styles.avatarPlaceholder}>
+                <Ionicons name="person" size={40} color="#666" />
+              </View>
+            )}
+          </View>
+
+          <Text style={styles.fullName}>
+            {profile.full_name || profile.username}
+          </Text>
+          <Text style={styles.username}>@{profile.username}</Text>
+
+          {profile.bio && <Text style={styles.bio}>{profile.bio}</Text>}
+
+          {profile.location && (
+            <View style={styles.locationContainer}>
+              <Ionicons name="location-outline" size={16} color="#666" />
+              <Text style={styles.location}>{profile.location}</Text>
             </View>
           )}
         </View>
 
-        <Text style={styles.fullName}>
-          {profile.full_name || profile.username}
-        </Text>
-        <Text style={styles.username}>@{profile.username}</Text>
-
-        {profile.bio && <Text style={styles.bio}>{profile.bio}</Text>}
-
-        {profile.location && (
-          <View style={styles.locationContainer}>
-            <Ionicons name="location-outline" size={16} color="#666" />
-            <Text style={styles.location}>{profile.location}</Text>
+        <View style={styles.statsSection}>
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{stats.pizzeriasVisited}</Text>
+            <Text style={styles.statLabel}>Places Visited</Text>
           </View>
-        )}
-      </View>
-
-      <View style={styles.statsSection}>
-        <View style={styles.statItem}>
-          <Text style={styles.statNumber}>{stats.recipeCount}</Text>
-          <Text style={styles.statLabel}>Recipes</Text>
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{stats.savedCount}</Text>
+            <Text style={styles.statLabel}>Saved</Text>
+          </View>
+          <View style={styles.statItem}>
+            <Text style={styles.statNumber}>{stats.ratingsCount}</Text>
+            <Text style={styles.statLabel}>Reviews</Text>
+          </View>
         </View>
-        <View style={styles.statItem}>
-          <Text style={styles.statNumber}>{stats.savedCount}</Text>
-          <Text style={styles.statLabel}>Saved</Text>
+
+        {/* Achievements Section */}
+        <View style={styles.achievementsSection}>
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>Pizza Passport</Text>
+            <Text style={styles.sectionSubtitle}>
+              {achievements.filter((a) => a.is_earned).length} of{" "}
+              {achievements.length} achievements earned
+            </Text>
+          </View>
+          <View style={styles.achievementsContainer}>
+            <AchievementGrid
+              achievements={achievements}
+              size="small"
+              columns={4}
+            />
+          </View>
         </View>
-        <View style={styles.statItem}>
-          <Text style={styles.statNumber}>{stats.ratingsCount}</Text>
-          <Text style={styles.statLabel}>Reviews</Text>
+
+        <View style={styles.menuSection}>
+          <TouchableOpacity style={styles.menuItem}>
+            <Ionicons name="create-outline" size={24} color="#666" />
+            <Text style={styles.menuText}>Edit Profile</Text>
+            <Ionicons name="chevron-forward" size={20} color="#666" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItem}>
+            <Ionicons name="settings-outline" size={24} color="#666" />
+            <Text style={styles.menuText}>Settings</Text>
+            <Ionicons name="chevron-forward" size={20} color="#666" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItem}>
+            <Ionicons name="help-circle-outline" size={24} color="#666" />
+            <Text style={styles.menuText}>Help & Support</Text>
+            <Ionicons name="chevron-forward" size={20} color="#666" />
+          </TouchableOpacity>
+
+          <TouchableOpacity style={styles.menuItem} onPress={handleSignOut}>
+            <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
+            <Text style={[styles.menuText, styles.signOutText]}>Sign Out</Text>
+          </TouchableOpacity>
         </View>
-      </View>
-
-      <View style={styles.menuSection}>
-        <TouchableOpacity style={styles.menuItem}>
-          <Ionicons name="create-outline" size={24} color="#666" />
-          <Text style={styles.menuText}>Edit Profile</Text>
-          <Ionicons name="chevron-forward" size={20} color="#666" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.menuItem}>
-          <Ionicons name="settings-outline" size={24} color="#666" />
-          <Text style={styles.menuText}>Settings</Text>
-          <Ionicons name="chevron-forward" size={20} color="#666" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.menuItem}>
-          <Ionicons name="help-circle-outline" size={24} color="#666" />
-          <Text style={styles.menuText}>Help & Support</Text>
-          <Ionicons name="chevron-forward" size={20} color="#666" />
-        </TouchableOpacity>
-
-        <TouchableOpacity style={styles.menuItem} onPress={handleSignOut}>
-          <Ionicons name="log-out-outline" size={24} color="#FF3B30" />
-          <Text style={[styles.menuText, styles.signOutText]}>Sign Out</Text>
-        </TouchableOpacity>
-      </View>
+      </ScrollView>
     </SafeAreaView>
   );
 };
@@ -196,6 +252,9 @@ const styles = StyleSheet.create({
     fontSize: 28,
     fontWeight: "bold",
     color: "#8B4513",
+  },
+  scrollContainer: {
+    flex: 1,
   },
   profileSection: {
     backgroundColor: "#FFF",
@@ -265,6 +324,28 @@ const styles = StyleSheet.create({
   statLabel: {
     fontSize: 14,
     color: "#666",
+  },
+  achievementsSection: {
+    backgroundColor: "#FFF",
+    marginBottom: 16,
+    paddingVertical: 20,
+  },
+  sectionHeader: {
+    paddingHorizontal: 20,
+    marginBottom: 16,
+  },
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#8B4513",
+    marginBottom: 4,
+  },
+  sectionSubtitle: {
+    fontSize: 14,
+    color: "#666",
+  },
+  achievementsContainer: {
+    height: 200,
   },
   menuSection: {
     backgroundColor: "#FFF",

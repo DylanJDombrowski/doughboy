@@ -105,6 +105,32 @@ export interface SavedPizzeria {
   created_at: string;
 }
 
+// Achievement Types
+export type AchievementType =
+  | "first_review"
+  | "five_reviews"
+  | "ten_places"
+  | "photo_reviewer"
+  | "style_explorer"
+  | "local_expert"
+  | "consistent_reviewer";
+
+export interface UserAchievement {
+  id: string;
+  user_id: string;
+  achievement_type: AchievementType;
+  earned_at: string;
+  metadata?: any;
+}
+
+export interface AchievementProgress {
+  achievement_type: AchievementType;
+  is_earned: boolean;
+  current_progress: number;
+  target: number;
+  earned_at?: string;
+}
+
 // Helper types for validation
 export type BusinessType = "chain" | "independent" | "franchise";
 export type ApiSource =
@@ -118,7 +144,9 @@ export type ApiSource =
 export const isValidBusinessType = (
   type: string | null
 ): type is BusinessType => {
-  return type !== null && ["chain", "independent", "franchise"].includes(type);
+  return (
+    type !== null && ["chain", "independent", "franchise"].indexOf(type) !== -1
+  );
 };
 
 export const isValidApiSource = (
@@ -126,13 +154,9 @@ export const isValidApiSource = (
 ): source is ApiSource => {
   return (
     source !== null &&
-    [
-      "yelp",
-      "user_submitted",
-      "foursquare",
-      "google",
-      "openstreetmap",
-    ].includes(source)
+    ["yelp", "user_submitted", "foursquare", "google", "openstreetmap"].indexOf(
+      source
+    ) !== -1
   );
 };
 export type PizzeriaWithDistance = Pizzeria & {

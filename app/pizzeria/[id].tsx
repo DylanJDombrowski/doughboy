@@ -1,40 +1,43 @@
 // app/pizzeria/[id].tsx
-import React, { useEffect, useState } from 'react';
-import { 
-  View, 
-  Text, 
-  StyleSheet, 
-  ScrollView, 
-  Image, 
-  TouchableOpacity, 
+import React, { useEffect, useState } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  ScrollView,
+  Image,
+  TouchableOpacity,
   ActivityIndicator,
   Modal,
   SafeAreaView,
   Alert,
-  StatusBar
-} from 'react-native';
-import { Stack, useLocalSearchParams, useRouter } from 'expo-router';
-import { Ionicons } from '@expo/vector-icons';
-import { useAuth } from '../../src/hooks/useAuth';
-import { useLocation } from '../../src/contexts/LocationContext';
-import { COLORS, SPACING, BORDER_RADIUS } from '../../src/constants';
-import { 
-  PizzeriaHeader, 
-  DoughStylesSection, 
-  PizzeriaReviewsList, 
+  StatusBar,
+} from "react-native";
+import { Stack, useLocalSearchParams, useRouter } from "expo-router";
+import { Ionicons } from "@expo/vector-icons";
+import { useAuth } from "../../src/hooks/useAuth";
+import { useLocation } from "../../src/contexts/LocationContext";
+import { COLORS, SPACING, BORDER_RADIUS } from "../../src/constants";
+import { checkAndAwardAchievements } from "../../src/services/achievementService";
+import { AchievementModal } from "../../src/components/achievements";
+import { AchievementType } from "../../src/types";
+import {
+  PizzeriaHeader,
+  DoughStylesSection,
+  PizzeriaReviewsList,
   ActionButtons,
-  HoursDisplay
-} from '../../src/components/pizzeria';
-import { DualRatingDisplay, ReviewModal } from '../../src/components/ratings';
-import { 
-  fetchPizzeriaDetails, 
+  HoursDisplay,
+} from "../../src/components/pizzeria";
+import { DualRatingDisplay, ReviewModal } from "../../src/components/ratings";
+import {
+  fetchPizzeriaDetails,
   fetchPizzeriaReviews,
-  isPizzeriaSaved, 
-  savePizzeria, 
-  unsavePizzeria 
-} from '../../src/services/pizzeria';
-import { PizzeriaWithRatings, PizzeriaRating } from '../../src/types';
-import { supabase } from '../../src/services/supabase';
+  isPizzeriaSaved,
+  savePizzeria,
+  unsavePizzeria,
+} from "../../src/services/pizzeria";
+import { PizzeriaWithRatings, PizzeriaRating } from "../../src/types";
+import { supabase } from "../../src/services/supabase";
 
 export default function PizzeriaDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -60,6 +63,10 @@ export default function PizzeriaDetailScreen() {
     one_star_count: number;
   } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
+  const [showAchievementModal, setShowAchievementModal] = useState(false);
+  const [newAchievement, setNewAchievement] = useState<AchievementType | null>(
+    null
+  );
 
   useEffect(() => {
     if (id) {
@@ -88,28 +95,36 @@ export default function PizzeriaDetailScreen() {
 
     try {
       if (!id) return;
-      
+
       // Fetch pizzeria details with ratings summary
-      const { success, pizzeria: pizzeriaData, ratingStats: stats, error } = await fetchPizzeriaDetails(id);
-      
+      const {
+        success,
+        pizzeria: pizzeriaData,
+        ratingStats: stats,
+        error,
+      } = await fetchPizzeriaDetails(id);
+
       if (!success || !pizzeriaData) {
-        throw new Error(error || 'Failed to load pizzeria details');
+        throw new Error(error || "Failed to load pizzeria details");
       }
-      
+
       setPizzeria(pizzeriaData);
       if (stats) {
         setRatingStats(stats);
       }
-      
+
       // Fetch recent reviews
-      const { success: reviewSuccess, reviews: reviewsData } = await fetchPizzeriaReviews(id);
+      const { success: reviewSuccess, reviews: reviewsData } =
+        await fetchPizzeriaReviews(id);
       if (reviewSuccess && reviewsData) {
         setReviews(reviewsData);
       }
-
     } catch (error) {
-      console.error('Error loading pizzeria data:', error);
-      Alert.alert('Error', 'Failed to load pizzeria details. Please try again.');
+      console.error("Error loading pizzeria data:", error);
+      Alert.alert(
+        "Error",
+        "Failed to load pizzeria details. Please try again."
+      );
     } finally {
       setLoading(false);
       setRefreshing(false);
@@ -118,13 +133,13 @@ export default function PizzeriaDetailScreen() {
 
   const calculateDistance = () => {
     if (!pizzeria || !location) return;
-    
+
     const R = 3959; // Earth's radius in miles
     const lat1 = location.coords.latitude;
     const lon1 = location.coords.longitude;
     const lat2 = pizzeria.latitude;
     const lon2 = pizzeria.longitude;
-    
+
     const dLat = ((lat2 - lat1) * Math.PI) / 180;
     const dLon = ((lon2 - lon1) * Math.PI) / 180;
     const a =
@@ -135,26 +150,30 @@ export default function PizzeriaDetailScreen() {
         Math.sin(dLon / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
     const distance = R * c;
-    
+
     setDistance(distance);
   };
 
   const checkIfSaved = async () => {
     if (!user || !id) return;
-    
+
     try {
-      const { success, isSaved: saved, error } = await isPizzeriaSaved(user.id, id);
+      const {
+        success,
+        isSaved: saved,
+        error,
+      } = await isPizzeriaSaved(user.id, id);
       if (success) {
         setIsSaved(!!saved);
       }
     } catch (error) {
-      console.error('Error checking if pizzeria is saved:', error);
+      console.error("Error checking if pizzeria is saved:", error);
     }
   };
 
   const handleToggleSave = async () => {
     if (!user || !id) {
-      Alert.alert('Sign In Required', 'Please sign in to save pizzerias.');
+      Alert.alert("Sign In Required", "Please sign in to save pizzerias.");
       return;
     }
 
@@ -171,8 +190,8 @@ export default function PizzeriaDetailScreen() {
         }
       }
     } catch (error) {
-      console.error('Error toggling saved state:', error);
-      Alert.alert('Error', 'Failed to update saved status. Please try again.');
+      console.error("Error toggling saved state:", error);
+      Alert.alert("Error", "Failed to update saved status. Please try again.");
     }
   };
 
@@ -182,7 +201,7 @@ export default function PizzeriaDetailScreen() {
 
   const handleWriteReview = () => {
     if (!user) {
-      Alert.alert('Sign In Required', 'Please sign in to write a review.');
+      Alert.alert("Sign In Required", "Please sign in to write a review.");
       return;
     }
     setShowReviewModal(true);
@@ -199,29 +218,41 @@ export default function PizzeriaDetailScreen() {
     try {
       // Use the createOrUpdatePizzeriaRating function from the util
       const { data, error } = await supabase
-        .from('pizzeria_ratings')
+        .from("pizzeria_ratings")
         .upsert({
           pizzeria_id: pizzeria.id,
           user_id: user.id,
           overall_rating: overallRating,
           crust_rating: crustRating,
           review,
-          photos
+          photos,
         })
         .select()
         .single();
 
       if (error) throw error;
-      
+
+      // Check for new achievements
+      const achievementResult = await checkAndAwardAchievements(user.id);
+      if (
+        achievementResult.success &&
+        achievementResult.newAchievements &&
+        achievementResult.newAchievements.length > 0
+      ) {
+        // Show the first new achievement
+        setNewAchievement(achievementResult.newAchievements[0]);
+        setShowAchievementModal(true);
+      }
+
       // Refresh the data to show the new review
       loadPizzeriaData();
       setShowReviewModal(false);
-      
+
       // Show success message
-      Alert.alert('Success', 'Your review has been submitted!');
+      Alert.alert("Success", "Your review has been submitted!");
     } catch (error) {
-      console.error('Error submitting review:', error);
-      Alert.alert('Error', 'Failed to submit review. Please try again.');
+      console.error("Error submitting review:", error);
+      Alert.alert("Error", "Failed to submit review. Please try again.");
     }
   };
 
@@ -262,35 +293,57 @@ export default function PizzeriaDetailScreen() {
   // Calculate rating breakdown percentages
   const getRatingBreakdown = () => {
     if (!ratingStats || ratingStats.total_ratings === 0) return [];
-    
+
     const total = ratingStats.total_ratings;
     return [
-      { stars: 5, count: ratingStats.five_star_count, percentage: (ratingStats.five_star_count / total) * 100 },
-      { stars: 4, count: ratingStats.four_star_count, percentage: (ratingStats.four_star_count / total) * 100 },
-      { stars: 3, count: ratingStats.three_star_count, percentage: (ratingStats.three_star_count / total) * 100 },
-      { stars: 2, count: ratingStats.two_star_count, percentage: (ratingStats.two_star_count / total) * 100 },
-      { stars: 1, count: ratingStats.one_star_count, percentage: (ratingStats.one_star_count / total) * 100 },
+      {
+        stars: 5,
+        count: ratingStats.five_star_count,
+        percentage: (ratingStats.five_star_count / total) * 100,
+      },
+      {
+        stars: 4,
+        count: ratingStats.four_star_count,
+        percentage: (ratingStats.four_star_count / total) * 100,
+      },
+      {
+        stars: 3,
+        count: ratingStats.three_star_count,
+        percentage: (ratingStats.three_star_count / total) * 100,
+      },
+      {
+        stars: 2,
+        count: ratingStats.two_star_count,
+        percentage: (ratingStats.two_star_count / total) * 100,
+      },
+      {
+        stars: 1,
+        count: ratingStats.one_star_count,
+        percentage: (ratingStats.one_star_count / total) * 100,
+      },
     ];
   };
 
   return (
     <>
-      <Stack.Screen 
+      <Stack.Screen
         options={{
-          title: pizzeria?.name || 'Pizzeria',
+          title: pizzeria?.name || "Pizzeria",
           headerTransparent: !!pizzeria?.photos?.length,
-          headerBackTitle: 'Back',
-          headerTintColor: pizzeria?.photos?.length ? COLORS.white : COLORS.primary,
+          headerBackTitle: "Back",
+          headerTintColor: pizzeria?.photos?.length
+            ? COLORS.white
+            : COLORS.primary,
           headerStyle: {
-            backgroundColor: pizzeria?.photos?.length ? 'transparent' : COLORS.white,
+            backgroundColor: pizzeria?.photos?.length
+              ? "transparent"
+              : COLORS.white,
           },
-        }} 
+        }}
       />
-      
+
       <SafeAreaView style={styles.container}>
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-        >
+        <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Hero Image or Image Carousel */}
           {pizzeria.photos && pizzeria.photos.length > 0 ? (
             <View style={styles.carouselContainer}>
@@ -314,7 +367,7 @@ export default function PizzeriaDetailScreen() {
                   </TouchableOpacity>
                 ))}
               </ScrollView>
-              
+
               {/* Pagination dots */}
               {pizzeria.photos.length > 1 && (
                 <View style={styles.paginationContainer}>
@@ -323,7 +376,7 @@ export default function PizzeriaDetailScreen() {
                       key={`dot-${index}`}
                       style={[
                         styles.paginationDot,
-                        { backgroundColor: COLORS.white }
+                        { backgroundColor: COLORS.white },
                       ]}
                     />
                   ))}
@@ -360,7 +413,7 @@ export default function PizzeriaDetailScreen() {
             {/* Ratings */}
             <View style={styles.ratingContainer}>
               <Text style={styles.sectionTitle}>Ratings</Text>
-              
+
               <DualRatingDisplay
                 overallRating={pizzeria.average_overall_rating || 0}
                 crustRating={pizzeria.average_crust_rating || 0}
@@ -374,16 +427,24 @@ export default function PizzeriaDetailScreen() {
               {ratingStats && ratingStats.total_ratings > 0 && (
                 <View style={styles.breakdownContainer}>
                   {getRatingBreakdown().map(({ stars, count, percentage }) => (
-                    <View key={`breakdown-${stars}`} style={styles.breakdownRow}>
+                    <View
+                      key={`breakdown-${stars}`}
+                      style={styles.breakdownRow}
+                    >
                       <Text style={styles.breakdownStars}>
-                        {stars} <Ionicons name="star" size={14} color={COLORS.primary} />
+                        {stars}{" "}
+                        <Ionicons
+                          name="star"
+                          size={14}
+                          color={COLORS.primary}
+                        />
                       </Text>
                       <View style={styles.breakdownBarContainer}>
-                        <View 
+                        <View
                           style={[
-                            styles.breakdownBar, 
-                            { width: `${percentage}%` }
-                          ]} 
+                            styles.breakdownBar,
+                            { width: `${percentage}%` },
+                          ]}
                         />
                       </View>
                       <Text style={styles.breakdownCount}>{count}</Text>
@@ -394,14 +455,15 @@ export default function PizzeriaDetailScreen() {
             </View>
 
             {/* Dough Styles */}
-            {pizzeria.pizzeria_dough_styles && pizzeria.pizzeria_dough_styles.length > 0 && (
-              <DoughStylesSection doughStyles={pizzeria.pizzeria_dough_styles} />
-            )}
+            {pizzeria.pizzeria_dough_styles &&
+              pizzeria.pizzeria_dough_styles.length > 0 && (
+                <DoughStylesSection
+                  doughStyles={pizzeria.pizzeria_dough_styles}
+                />
+              )}
 
             {/* Hours */}
-            {pizzeria.hours && (
-              <HoursDisplay hours={pizzeria.hours} />
-            )}
+            {pizzeria.hours && <HoursDisplay hours={pizzeria.hours} />}
 
             {/* Description */}
             {pizzeria.description && (
@@ -435,7 +497,7 @@ export default function PizzeriaDetailScreen() {
           >
             <Ionicons name="close" size={24} color={COLORS.white} />
           </TouchableOpacity>
-          
+
           {fullScreenPhoto && (
             <Image
               source={{ uri: fullScreenPhoto }}
@@ -455,7 +517,7 @@ export default function PizzeriaDetailScreen() {
           onReviewSubmitted={() => {
             setShowReviewModal(false);
             loadPizzeriaData(); // Refresh data after review submission
-            Alert.alert('Success', 'Your review has been submitted!');
+            Alert.alert("Success", "Your review has been submitted!");
           }}
         />
       )}
@@ -473,8 +535,8 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: SPACING.md,
   },
   loadingText: {
@@ -484,15 +546,15 @@ const styles = StyleSheet.create({
   },
   errorContainer: {
     flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     paddingHorizontal: SPACING.md,
   },
   errorText: {
     fontSize: 16,
     color: COLORS.text,
     marginTop: SPACING.md,
-    textAlign: 'center',
+    textAlign: "center",
   },
   retryButton: {
     marginTop: SPACING.md,
@@ -502,31 +564,31 @@ const styles = StyleSheet.create({
   },
   retryButtonText: {
     color: COLORS.white,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   carouselContainer: {
-    width: '100%',
+    width: "100%",
     height: 250,
-    position: 'relative',
+    position: "relative",
   },
   carousel: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   carouselItem: {
-    width: '100%', 
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   heroImage: {
-    width: '100%',
-    height: '100%',
+    width: "100%",
+    height: "100%",
   },
   paginationContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: SPACING.sm,
-    flexDirection: 'row',
-    justifyContent: 'center',
-    width: '100%',
+    flexDirection: "row",
+    justifyContent: "center",
+    width: "100%",
   },
   paginationDot: {
     width: 8,
@@ -537,11 +599,11 @@ const styles = StyleSheet.create({
     opacity: 0.8,
   },
   placeholderImage: {
-    width: '100%',
+    width: "100%",
     height: 200,
     backgroundColor: COLORS.secondary,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   placeholderText: {
     marginTop: SPACING.sm,
@@ -556,7 +618,7 @@ const styles = StyleSheet.create({
     padding: SPACING.md,
     backgroundColor: COLORS.white,
     borderRadius: BORDER_RADIUS.md,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
     shadowRadius: 2,
@@ -564,7 +626,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.text,
     marginBottom: SPACING.sm,
   },
@@ -572,8 +634,8 @@ const styles = StyleSheet.create({
     marginTop: SPACING.md,
   },
   breakdownRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     marginBottom: SPACING.xs,
   },
   breakdownStars: {
@@ -587,17 +649,17 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.secondary,
     borderRadius: 4,
     marginHorizontal: SPACING.sm,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   breakdownBar: {
-    height: '100%',
+    height: "100%",
     backgroundColor: COLORS.primary,
   },
   breakdownCount: {
     width: 30,
     fontSize: 14,
     color: COLORS.textLight,
-    textAlign: 'right',
+    textAlign: "right",
   },
   descriptionContainer: {
     marginVertical: SPACING.md,
@@ -609,19 +671,19 @@ const styles = StyleSheet.create({
   },
   photoModalContainer: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.9)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(0,0,0,0.9)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   closeButton: {
-    position: 'absolute',
+    position: "absolute",
     top: 40,
     right: 20,
     zIndex: 10,
     padding: SPACING.sm,
   },
   fullScreenPhoto: {
-    width: '100%',
-    height: '80%',
+    width: "100%",
+    height: "80%",
   },
 });
