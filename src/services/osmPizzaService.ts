@@ -151,7 +151,7 @@ const transformOSMToPizzeria = (
       : `${lat.toFixed(6)}, ${lon.toFixed(6)}`; // Fallback to coordinates
 
   // Determine business type based on brand info
-  const businessType =
+  const businessType: string =
     tags.brand || tags["brand:wikidata"] ? "chain" : "independent";
 
   // Extract cuisine styles from cuisine tag
@@ -175,7 +175,7 @@ const transformOSMToPizzeria = (
     description: null,
     hours: tags.opening_hours ? { raw: tags.opening_hours } : null,
     price_range: null, // OSM doesn't typically have pricing
-    business_type: businessType as "chain" | "independent",
+    business_type: businessType,
     cuisine_styles: cuisineStyles,
     api_source: "openstreetmap",
     yelp_id: null,
@@ -183,7 +183,7 @@ const transformOSMToPizzeria = (
     review_count_external: null,
     last_updated: new Date().toISOString(),
     created_at: new Date().toISOString(),
-  } as unknown as Pizzeria;
+  } as Pizzeria;
 };
 
 /**
@@ -202,20 +202,35 @@ export const discoverPizzaPlaces = async (
 }> => {
   try {
     // Step 1: Check our database first
-    const { data: cachedPizzerias, error: dbError } = await supabase.rpc(
-      "get_nearby_pizzerias",
-      {
-        user_lat: latitude,
-        user_lon: longitude,
-        radius_km: radiusKm,
-      }
-    );
+    const { data: cachedPizzerias, error: dbError } = await supabase
+      .from("pizzerias")
+      .select("*")
+      .gte("latitude", latitude - radiusKm / 69)
+      .lte("latitude", latitude + radiusKm / 69)
+      .gte(
+        "longitude",
+        longitude - radiusKm / (69 * Math.cos((latitude * Math.PI) / 180))
+      )
+      .lte(
+        "longitude",
+        longitude + radiusKm / (69 * Math.cos((latitude * Math.PI) / 180))
+      );
 
     if (dbError) {
       console.error("Database query error:", dbError);
     }
 
-    const cached = cachedPizzerias || [];
+    const cached = (cachedPizzerias || [])
+      .map((p) => ({
+        ...p,
+        distance: calculateDistance(
+          latitude,
+          longitude,
+          p.latitude,
+          p.longitude
+        ),
+      }))
+      .filter((p) => p.distance <= radiusKm);
     let fromAPI: Pizzeria[] = [];
 
     // Step 2: If we have few results, supplement with OSM data
@@ -251,31 +266,21 @@ export const discoverPizzaPlaces = async (
     }
 
     // Combine results and sort by distance
-    const allPizzeriasWithDistance = [...cached, ...fromAPI]
-      .map((p) => ({
-        ...p,
-        // Ensure business_type is correct type
-        business_type:
-          p.business_type === "chain" ||
-          p.business_type === "independent" ||
-          p.business_type === "franchise" ||
-          p.business_type === null ||
-          p.business_type === undefined
-            ? p.business_type
-            : null,
-        distance: calculateDistance(
-          latitude,
-          longitude,
-          p.latitude,
-          p.longitude
-        ),
-      }))
+    const allPizzerias = [...cached, ...fromAPI]
+      .map((p) => {
+        // Remove distance property if it exists, then add it properly
+        const { distance, ...pizzeriaWithoutDistance } = p as any;
+        return {
+          ...pizzeriaWithoutDistance,
+          distance: calculateDistance(
+            latitude,
+            longitude,
+            p.latitude,
+            p.longitude
+          ),
+        };
+      })
       .sort((a, b) => a.distance - b.distance);
-
-    // Remove distance property before returning
-    const allPizzerias: Pizzeria[] = allPizzeriasWithDistance.map(
-      ({ distance, ...rest }) => rest as Pizzeria
-    );
 
     return {
       success: true,

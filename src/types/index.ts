@@ -14,11 +14,11 @@ export interface Pizzeria {
   photos?: string[] | null;
   description?: string | null;
   hours?: any | null;
-  // New enhanced fields
-  price_range?: number | null; // 1-4 for $-$$$$
-  business_type?: "chain" | "independent" | "franchise" | null;
+  // New enhanced fields - matching database exactly
+  price_range?: number | null; // 1-4 for $-$$
+  business_type?: string | null; // Database stores as string, we'll validate in app
   cuisine_styles?: string[] | null;
-  api_source?: "yelp" | "user_submitted" | "foursquare" | "google" | null;
+  api_source?: string | null; // Database stores as string
   yelp_id?: string | null;
   rating_external?: number | null;
   review_count_external?: number | null;
@@ -84,7 +84,12 @@ export interface PizzeriaRating {
   review?: string | null;
   photos?: string[] | null;
   created_at: string;
-  user?: User;
+  user?: {
+    id: string;
+    username: string;
+    avatar_url: string | null;
+    full_name: string | null;
+  };
 }
 
 export interface PizzeriaWithRatings extends Pizzeria {
@@ -100,7 +105,36 @@ export interface SavedPizzeria {
   created_at: string;
 }
 
-// Helper types for common patterns
+// Helper types for validation
+export type BusinessType = "chain" | "independent" | "franchise";
+export type ApiSource =
+  | "yelp"
+  | "user_submitted"
+  | "foursquare"
+  | "google"
+  | "openstreetmap";
+
+// Type guards for validation
+export const isValidBusinessType = (
+  type: string | null
+): type is BusinessType => {
+  return type !== null && ["chain", "independent", "franchise"].includes(type);
+};
+
+export const isValidApiSource = (
+  source: string | null
+): source is ApiSource => {
+  return (
+    source !== null &&
+    [
+      "yelp",
+      "user_submitted",
+      "foursquare",
+      "google",
+      "openstreetmap",
+    ].includes(source)
+  );
+};
 export type PizzeriaWithDistance = Pizzeria & {
   distance: number;
   dough_styles?: PizzeriaDoughStyle[];

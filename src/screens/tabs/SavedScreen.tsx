@@ -1,95 +1,135 @@
-// src/screens/tabs/MapScreen.tsx
+// src/screens/tabs/SavedScreen.tsx
 import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
+  FlatList,
   StyleSheet,
   SafeAreaView,
-  ActivityIndicator,
-  Alert,
   TouchableOpacity,
+  ActivityIndicator,
+  Image,
 } from "react-native";
-import MapView, { Marker, Region } from "react-native-maps";
 import { Ionicons } from "@expo/vector-icons";
-import { useLocation } from "../../contexts/LocationContext";
-import { discoverPizzaPlaces } from "../../services/osmPizzaService";
-import { COLORS, SPACING } from "../../constants";
+import { useRouter } from "expo-router";
+import { useAuth } from "../../contexts/AuthContext";
+import { getSavedPizzerias } from "../../utils/savedPizzeria";
+import { DualRatingDisplay } from "../../components/ratings";
+import { COLORS, SPACING, BORDER_RADIUS } from "../../constants";
 import { Pizzeria } from "../../types";
 
-const MapScreen: React.FC = () => {
-  const {
-    location,
-    loading: locationLoading,
-    error: locationError,
-  } = useLocation();
-  const [pizzerias, setPizzerias] = useState<Pizzeria[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [region, setRegion] = useState<Region | null>(null);
+const SavedScreen: React.FC = () => {
+  const { user } = useAuth();
+  const router = useRouter();
+  const [savedPizzerias, setSavedPizzerias] = useState<Pizzeria[]>([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (location) {
-      setRegion({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-        latitudeDelta: 0.0922,
-        longitudeDelta: 0.0421,
-      });
-      loadNearbyPizzerias();
+    if (user) {
+      loadSavedPizzerias();
     }
-  }, [location]);
+  }, [user]);
 
-  const loadNearbyPizzerias = async () => {
-    if (!location) return;
+  const loadSavedPizzerias = async () => {
+    if (!user) return;
 
     try {
       setLoading(true);
-      const result = await discoverPizzaPlaces(
-        location.coords.latitude,
-        location.coords.longitude,
-        10 // 10km radius
-      );
+      const { success, pizzerias } = await getSavedPizzerias(user.id);
 
-      if (result.success) {
-        setPizzerias(result.pizzerias);
-      } else {
-        Alert.alert("Error", result.error || "Failed to load pizza places");
+      if (success && pizzerias) {
+        setSavedPizzerias(pizzerias);
       }
     } catch (error) {
-      console.error("Error loading pizzerias:", error);
-      Alert.alert("Error", "Failed to load pizza places");
+      console.error("Error loading saved pizzerias:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleRefresh = () => {
-    loadNearbyPizzerias();
+  const handlePizzeriaPress = (pizzeria: Pizzeria) => {
+    router.push(`/pizzeria/${pizzeria.id}`);
   };
 
-  if (locationLoading) {
+  const renderPizzeria = ({ item }: { item: Pizzeria }) => (
+    <TouchableOpacity
+      style={styles.pizzeriaCard}
+      onPress={() => handlePizzeriaPress(item)}
+    >
+      {item.photos && item.photos.length > 0 ? (
+        <Image source={{ uri: item.photos[0] }} style={styles.pizzeriaImage} />
+      ) : (
+        <View style={styles.placeholderImage}>
+          <Ionicons name="pizza-outline" size={32} color={COLORS.textLight} />
+        </View>
+      )}
+
+      <View style={styles.pizzeriaContent}>
+        <View style={styles.pizzeriaHeader}>
+          <Text style={styles.pizzeriaName}>{item.name}</Text>
+          {item.verified && (
+            <Ionicons
+              name="checkmark-circle"
+              size={16}
+              color={COLORS.primary}
+            />
+          )}
+        </View>
+
+        <Text style={styles.pizzeriaAddress} numberOfLines={1}>
+          {item.address}
+        </Text>
+
+        {item.business_type && (
+          <Text style={styles.businessType}>
+            {item.business_type.charAt(0).toUpperCase() +
+              item.business_type.slice(1)}
+          </Text>
+        )}
+
+        {((item.average_overall_rating && item.average_overall_rating > 0) ||
+          (item.average_crust_rating && item.average_crust_rating > 0)) && (
+          <View style={styles.ratingContainer}>
+            <DualRatingDisplay
+              overallRating={item.average_overall_rating || 0}
+              crustRating={item.average_crust_rating || 0}
+              compact={true}
+              size={14}
+              ratingCount={item.rating_count}
+            />
+          </View>
+        )}
+
+        {item.cuisine_styles && item.cuisine_styles.length > 0 && (
+          <View style={styles.cuisineContainer}>
+            {item.cuisine_styles.slice(0, 2).map((style, index) => (
+              <View key={index} style={styles.cuisineTag}>
+                <Text style={styles.cuisineText}>
+                  {style.replace("_", " ")}
+                </Text>
+              </View>
+            ))}
+            {item.cuisine_styles.length > 2 && (
+              <Text style={styles.moreStyles}>
+                +{item.cuisine_styles.length - 2} more
+              </Text>
+            )}
+          </View>
+        )}
+      </View>
+
+      <View style={styles.chevronContainer}>
+        <Ionicons name="chevron-forward" size={20} color={COLORS.textLight} />
+      </View>
+    </TouchableOpacity>
+  );
+
+  if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.loadingText}>Getting your location...</Text>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
-  if (locationError || !location) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <View style={styles.errorContainer}>
-          <Ionicons
-            name="location-outline"
-            size={48}
-            color={COLORS.textLight}
-          />
-          <Text style={styles.errorText}>Location access needed</Text>
-          <Text style={styles.errorSubtext}>
-            Please enable location services to find pizza places near you
-          </Text>
+          <Text style={styles.loadingText}>Loading saved pizza places...</Text>
         </View>
       </SafeAreaView>
     );
@@ -98,58 +138,27 @@ const MapScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Pizza Map</Text>
-        <TouchableOpacity
-          style={styles.refreshButton}
-          onPress={handleRefresh}
-          disabled={loading}
-        >
-          <Ionicons
-            name="refresh"
-            size={24}
-            color={loading ? COLORS.textLight : COLORS.primary}
-          />
-        </TouchableOpacity>
+        <Text style={styles.title}>Saved Places</Text>
+        <Text style={styles.subtitle}>{savedPizzerias.length} saved</Text>
       </View>
 
-      {region && (
-        <MapView
-          style={styles.map}
-          region={region}
-          onRegionChangeComplete={setRegion}
-          showsUserLocation
-          showsMyLocationButton
-        >
-          {pizzerias.map((pizzeria) => (
-            <Marker
-              key={pizzeria.id}
-              coordinate={{
-                latitude: pizzeria.latitude,
-                longitude: pizzeria.longitude,
-              }}
-              title={pizzeria.name}
-              description={pizzeria.address}
-            >
-              <View style={styles.markerContainer}>
-                <Ionicons name="pizza" size={24} color={COLORS.primary} />
-              </View>
-            </Marker>
-          ))}
-        </MapView>
-      )}
-
-      {loading && (
-        <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="small" color={COLORS.primary} />
-          <Text style={styles.loadingOverlayText}>Finding pizza places...</Text>
-        </View>
-      )}
-
-      <View style={styles.statsContainer}>
-        <Text style={styles.statsText}>
-          {pizzerias.length} pizza places found
-        </Text>
-      </View>
+      <FlatList
+        data={savedPizzerias}
+        renderItem={renderPizzeria}
+        keyExtractor={(item) => item.id}
+        refreshing={loading}
+        onRefresh={loadSavedPizzerias}
+        contentContainerStyle={styles.list}
+        ListEmptyComponent={
+          <View style={styles.emptyContainer}>
+            <Ionicons name="heart-outline" size={64} color={COLORS.textLight} />
+            <Text style={styles.emptyText}>No saved pizza places yet</Text>
+            <Text style={styles.emptySubtext}>
+              Start exploring and save your favorite spots!
+            </Text>
+          </View>
+        }
+      />
     </SafeAreaView>
   );
 };
@@ -160,37 +169,107 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   header: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
     paddingHorizontal: SPACING.md,
-    paddingVertical: SPACING.sm,
+    paddingVertical: SPACING.md,
     backgroundColor: COLORS.white,
     borderBottomWidth: 1,
     borderBottomColor: COLORS.border,
   },
   title: {
-    fontSize: 24,
+    fontSize: 28,
     fontWeight: "bold",
     color: COLORS.primaryDark,
+    marginBottom: SPACING.xs,
   },
-  refreshButton: {
-    padding: SPACING.sm,
+  subtitle: {
+    fontSize: 14,
+    color: COLORS.textLight,
   },
-  map: {
-    flex: 1,
+  list: {
+    padding: SPACING.md,
   },
-  markerContainer: {
+  pizzeriaCard: {
+    flexDirection: "row",
     backgroundColor: COLORS.white,
-    borderRadius: 20,
-    padding: SPACING.xs,
-    borderWidth: 2,
-    borderColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.md,
+    marginBottom: SPACING.md,
+    overflow: "hidden",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 3.84,
-    elevation: 5,
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  pizzeriaImage: {
+    width: 80,
+    height: 80,
+  },
+  placeholderImage: {
+    width: 80,
+    height: 80,
+    backgroundColor: COLORS.secondary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  pizzeriaContent: {
+    flex: 1,
+    padding: SPACING.sm,
+    justifyContent: "space-between",
+  },
+  pizzeriaHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: SPACING.xs,
+  },
+  pizzeriaName: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: COLORS.text,
+    flex: 1,
+    marginRight: SPACING.xs,
+  },
+  pizzeriaAddress: {
+    fontSize: 14,
+    color: COLORS.textLight,
+    marginBottom: SPACING.xs,
+  },
+  businessType: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: "500",
+    marginBottom: SPACING.xs,
+  },
+  ratingContainer: {
+    marginBottom: SPACING.xs,
+  },
+  cuisineContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  cuisineTag: {
+    backgroundColor: COLORS.secondary,
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: 2,
+    borderRadius: BORDER_RADIUS.sm,
+    marginRight: SPACING.xs,
+    marginBottom: 2,
+  },
+  cuisineText: {
+    fontSize: 11,
+    color: COLORS.primaryDark,
+    fontWeight: "500",
+    textTransform: "capitalize",
+  },
+  moreStyles: {
+    fontSize: 11,
+    color: COLORS.textLight,
+    fontStyle: "italic",
+  },
+  chevronContainer: {
+    justifyContent: "center",
+    alignItems: "center",
+    paddingHorizontal: SPACING.sm,
   },
   loadingContainer: {
     flex: 1,
@@ -203,60 +282,26 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: COLORS.textLight,
   },
-  loadingOverlay: {
-    position: "absolute",
-    top: 100,
-    left: 0,
-    right: 0,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    backgroundColor: COLORS.white,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    marginHorizontal: SPACING.lg,
-    borderRadius: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  loadingOverlayText: {
-    marginLeft: SPACING.sm,
-    fontSize: 14,
-    color: COLORS.text,
-  },
-  statsContainer: {
-    backgroundColor: COLORS.white,
-    paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-  },
-  statsText: {
-    fontSize: 14,
-    color: COLORS.textLight,
-    textAlign: "center",
-  },
-  errorContainer: {
+  emptyContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
+    paddingVertical: SPACING.xxl * 2,
     paddingHorizontal: SPACING.lg,
   },
-  errorText: {
+  emptyText: {
     fontSize: 18,
     fontWeight: "600",
     color: COLORS.text,
     marginTop: SPACING.md,
     marginBottom: SPACING.sm,
+    textAlign: "center",
   },
-  errorSubtext: {
+  emptySubtext: {
     fontSize: 14,
     color: COLORS.textLight,
     textAlign: "center",
   },
 });
 
-export default MapScreen;
+export default SavedScreen;

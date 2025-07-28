@@ -36,13 +36,15 @@ export const formatPriceRange = (priceRange: number): string => {
   return prices[priceRange] || "N/A";
 };
 
-export const formatBusinessType = (businessType: string): string => {
+export const formatBusinessType = (businessType: string | null): string => {
+  if (!businessType) return "Unknown";
+
   const types: { [key: string]: string } = {
     chain: "Chain",
     independent: "Independent",
     franchise: "Franchise",
   };
-  return types[businessType] || businessType;
+  return types[businessType.toLowerCase()] || businessType;
 };
 
 export const slugify = (text: string): string => {
