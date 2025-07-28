@@ -1,235 +1,79 @@
 // src/services/achievementService.ts
 import { supabase } from "./supabase";
+import { UserAchievement, AchievementProgress, UserStats } from "../types";
 import {
-  UserAchievement,
+  ACHIEVEMENTS,
   AchievementType,
-  AchievementProgress,
-} from "../types";
-import { ACHIEVEMENTS, getAllAchievements } from "../constants/achievements";
-
-/**
- * Get all achievements for a user with their progress
- */
-export const getUserAchievements = async (userId: string) => {
-  try {
-    // Get user's earned achievements
-    const { data: earnedAchievements, error: achievementError } = await supabase
-      .from("user_achievements")
-      .select("*")
-      .eq("user_id", userId);
-
-    if (achievementError) {
-      throw achievementError;
-    }
-
-    // Get all possible achievements and calculate progress
-    const allAchievements = getAllAchievements();
-    const achievementProgress: AchievementProgress[] = [];
-
-    for (const achievement of allAchievements) {
-      const earned =
-        earnedAchievements &&
-        earnedAchievements.find(
-          (ea: any) => ea.achievement_type === achievement.type
-        );
-      const progress = await calculateAchievementProgress(
-        userId,
-        achievement.type
-      );
-
-      achievementProgress.push({
-        achievement_type: achievement.type,
-        is_earned: !!earned,
-        current_progress: progress,
-        target: achievement.criteria.target,
-        earned_at: earned ? earned.earned_at : undefined,
-      });
-    }
-
-    return {
-      success: true,
-      achievements: achievementProgress,
-    };
-  } catch (error) {
-    console.error("Error getting user achievements:", error);
-    return {
-      success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
-    };
-  }
-};
-
-/**
- * Calculate current progress for a specific achievement
- */
-export const calculateAchievementProgress = async (
-  userId: string,
-  achievementType: AchievementType
-) => {
-  try {
-    switch (achievementType) {
-      case "first_review":
-      case "five_reviews": {
-        // Count total reviews
-        const { count } = await supabase
-          .from("pizzeria_ratings")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", userId);
-        return count || 0;
-      }
-
-      case "ten_places": {
-        // Count unique pizzerias reviewed
-        const { data } = await supabase
-          .from("pizzeria_ratings")
-          .select("pizzeria_id")
-          .eq("user_id", userId);
-
-        const pizzeriaIds = data ? data.map((r: any) => r.pizzeria_id) : [];
-        const uniquePizzerias: string[] = [];
-        for (const id of pizzeriaIds) {
-          if (uniquePizzerias.indexOf(id) === -1) {
-            uniquePizzerias.push(id);
-          }
-        }
-        return uniquePizzerias.length;
-      }
-
-      case "photo_reviewer": {
-        // Count reviews with photos
-        const { count } = await supabase
-          .from("pizzeria_ratings")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", userId)
-          .not("photos", "is", null)
-          .neq("photos", "{}");
-        return count || 0;
-      }
-
-      case "style_explorer": {
-        // Count unique pizza styles from reviewed pizzerias
-        const { data: ratings } = await supabase
-          .from("pizzeria_ratings")
-          .select("pizzeria_id")
-          .eq("user_id", userId);
-
-        if (!ratings || ratings.length === 0) return 0;
-
-        const pizzeriaIds = ratings.map((r: any) => r.pizzeria_id);
-        const { data: styles } = await supabase
-          .from("pizzeria_dough_styles")
-          .select("dough_style")
-          .in("pizzeria_id", pizzeriaIds)
-          .eq("status", "approved");
-
-        const doughStyles = styles ? styles.map((s: any) => s.dough_style) : [];
-        const uniqueStyles: string[] = [];
-        for (const style of doughStyles) {
-          if (uniqueStyles.indexOf(style) === -1) {
-            uniqueStyles.push(style);
-          }
-        }
-        return uniqueStyles.length;
-      }
-
-      case "local_expert": {
-        // This would require geolocation calculations
-        // For now, return the count of all reviews (simplified)
-        const { count } = await supabase
-          .from("pizzeria_ratings")
-          .select("*", { count: "exact", head: true })
-          .eq("user_id", userId);
-        return count || 0;
-      }
-
-      case "consistent_reviewer": {
-        // Check for consecutive days with reviews
-        const { data: ratings } = await supabase
-          .from("pizzeria_ratings")
-          .select("created_at")
-          .eq("user_id", userId)
-          .order("created_at", { ascending: false });
-
-        if (!ratings || ratings.length === 0) return 0;
-
-        // Group ratings by date and find longest consecutive streak
-        const ratingDates = ratings.map((r: any) =>
-          new Date(r.created_at).toDateString()
-        );
-        const uniqueDates: string[] = [];
-        for (const date of ratingDates) {
-          if (uniqueDates.indexOf(date) === -1) {
-            uniqueDates.push(date);
-          }
-        }
-        uniqueDates.sort();
-
-        let maxStreak = 0;
-        let currentStreak = 1;
-
-        for (let i = 1; i < uniqueDates.length; i++) {
-          const prevDate = new Date(uniqueDates[i - 1]);
-          const currDate = new Date(uniqueDates[i]);
-          const diffDays = Math.abs(
-            (currDate.getTime() - prevDate.getTime()) / (1000 * 60 * 60 * 24)
-          );
-
-          if (diffDays === 1) {
-            currentStreak++;
-          } else {
-            maxStreak = Math.max(maxStreak, currentStreak);
-            currentStreak = 1;
-          }
-        }
-
-        return Math.max(maxStreak, currentStreak);
-      }
-
-      default:
-        return 0;
-    }
-  } catch (error) {
-    console.error(`Error calculating progress for ${achievementType}:`, error);
-    return 0;
-  }
-};
+  getAllAchievements,
+} from "../constants/achievements";
 
 /**
  * Check and award achievements for a user
  */
-export const checkAndAwardAchievements = async (userId: string) => {
+export const checkAndAwardAchievements = async (
+  userId: string
+): Promise<{
+  success: boolean;
+  newAchievements: UserAchievement[];
+  error?: string;
+}> => {
   try {
-    const { data: existingAchievements } = await supabase
-      .from("user_achievements")
-      .select("achievement_type")
-      .eq("user_id", userId);
+    // Get user's current achievements
+    const { data: existingAchievements, error: achievementError } =
+      await supabase
+        .from("user_achievements")
+        .select("achievement_type")
+        .eq("user_id", userId);
 
-    const existingTypes = existingAchievements
-      ? existingAchievements.map((a: any) => a.achievement_type)
-      : [];
-    const newAchievements: AchievementType[] = [];
+    if (achievementError) throw achievementError;
 
-    // Check each achievement type
+    const earnedTypes = new Set(
+      existingAchievements?.map((a) => a.achievement_type) || []
+    );
+
+    // Get user stats for checking criteria
+    const userStats = await getUserStats(userId);
+    if (!userStats.success || !userStats.stats) {
+      throw new Error("Failed to get user stats");
+    }
+
+    const stats = userStats.stats;
+    const newAchievements: UserAchievement[] = [];
+
+    // Check each achievement
     for (const achievement of getAllAchievements()) {
-      if (existingTypes.indexOf(achievement.type) !== -1) {
-        continue; // Already earned
-      }
+      if (earnedTypes.has(achievement.type)) continue;
 
-      const progress = await calculateAchievementProgress(
-        userId,
-        achievement.type
+      const shouldEarn = await checkAchievementCriteria(
+        achievement.type,
+        stats,
+        userId
       );
 
-      if (progress >= achievement.criteria.target) {
-        // Award the achievement
-        const { error } = await supabase.from("user_achievements").insert({
-          user_id: userId,
-          achievement_type: achievement.type,
-          metadata: { progress_when_earned: progress },
-        });
+      if (shouldEarn) {
+        const { data: newAchievement, error: insertError } = await supabase
+          .from("user_achievements")
+          .insert({
+            user_id: userId,
+            achievement_type: achievement.type,
+            metadata: {
+              progress: getProgressForAchievement(achievement.type, stats),
+              target: achievement.criteria.target,
+            },
+          })
+          .select()
+          .single();
 
-        if (!error) {
-          newAchievements.push(achievement.type);
+        if (insertError) {
+          console.error(
+            `Error awarding achievement ${achievement.type}:`,
+            insertError
+          );
+          continue;
+        }
+
+        if (newAchievement) {
+          newAchievements.push(newAchievement as UserAchievement);
         }
       }
     }
@@ -242,40 +86,358 @@ export const checkAndAwardAchievements = async (userId: string) => {
     console.error("Error checking achievements:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
+      newAchievements: [],
+      error: error instanceof Error ? error.message : "Unknown error",
     };
   }
 };
 
 /**
- * Award a specific achievement to a user
+ * Check if user meets criteria for a specific achievement
  */
-export const awardAchievement = async (
-  userId: string,
+const checkAchievementCriteria = async (
   achievementType: AchievementType,
-  metadata?: any
-) => {
-  try {
-    const { error } = await supabase.from("user_achievements").insert({
-      user_id: userId,
-      achievement_type: achievementType,
-      metadata,
-    });
+  stats: UserStats,
+  userId: string
+): Promise<boolean> => {
+  const achievement = ACHIEVEMENTS[achievementType];
 
-    if (error) {
-      // Check if it's a duplicate key error (already earned)
-      if (error.code === "23505") {
-        return { success: true }; // Achievement already earned, treat as success
-      }
-      throw error;
+  switch (achievementType) {
+    case "first_review":
+      return stats.total_reviews >= 1;
+
+    case "five_reviews":
+      return stats.total_reviews >= 5;
+
+    case "ten_places":
+      return stats.total_pizzerias_visited >= 10;
+
+    case "photo_reviewer":
+      return stats.reviews_with_photos >= 5;
+
+    case "style_explorer":
+      return stats.unique_pizza_styles.length >= 3;
+
+    case "local_expert":
+      // Check if user has reviewed 5 places within a certain radius (e.g., 10 miles)
+      return await checkLocalExpertCriteria(userId);
+
+    case "consistent_reviewer":
+      return stats.consecutive_review_days >= 7;
+
+    default:
+      return false;
+  }
+};
+
+/**
+ * Get progress value for achievement display
+ */
+const getProgressForAchievement = (
+  achievementType: AchievementType,
+  stats: UserStats
+): number => {
+  switch (achievementType) {
+    case "first_review":
+    case "five_reviews":
+      return stats.total_reviews;
+    case "ten_places":
+      return stats.total_pizzerias_visited;
+    case "photo_reviewer":
+      return stats.reviews_with_photos;
+    case "style_explorer":
+      return stats.unique_pizza_styles.length;
+    case "consistent_reviewer":
+      return stats.consecutive_review_days;
+    default:
+      return 0;
+  }
+};
+
+/**
+ * Check local expert criteria (5 reviews within user's area)
+ */
+const checkLocalExpertCriteria = async (userId: string): Promise<boolean> => {
+  try {
+    // Get user's location
+    const { data: user, error: userError } = await supabase
+      .from("users")
+      .select("current_latitude, current_longitude")
+      .eq("id", userId)
+      .single();
+
+    if (userError || !user?.current_latitude || !user?.current_longitude) {
+      return false;
     }
 
-    return { success: true };
+    // Count reviews within 10 miles of user's location
+    const { data: nearbyReviews, error: reviewError } = await supabase
+      .from("pizzeria_ratings")
+      .select(
+        `
+        id,
+        pizzerias!inner(latitude, longitude)
+      `
+      )
+      .eq("user_id", userId);
+
+    if (reviewError) return false;
+
+    let localReviewCount = 0;
+    const userLat = user.current_latitude;
+    const userLon = user.current_longitude;
+
+    nearbyReviews?.forEach((review) => {
+      const pizzeria = (review as any).pizzerias;
+      if (pizzeria) {
+        const distance = calculateDistance(
+          userLat,
+          userLon,
+          pizzeria.latitude,
+          pizzeria.longitude
+        );
+        if (distance <= 10) {
+          // 10 miles
+          localReviewCount++;
+        }
+      }
+    });
+
+    return localReviewCount >= 5;
   } catch (error) {
-    console.error("Error awarding achievement:", error);
+    console.error("Error checking local expert criteria:", error);
+    return false;
+  }
+};
+
+/**
+ * Calculate distance between two coordinates in miles
+ */
+const calculateDistance = (
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number => {
+  const R = 3959; // Earth's radius in miles
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+};
+
+/**
+ * Get comprehensive user statistics for achievement checking
+ */
+export const getUserStats = async (
+  userId: string
+): Promise<{
+  success: boolean;
+  stats?: UserStats;
+  error?: string;
+}> => {
+  try {
+    // Get all user reviews with pizzeria info
+    const { data: reviews, error: reviewError } = await supabase
+      .from("pizzeria_ratings")
+      .select(
+        `
+        id,
+        overall_rating,
+        crust_rating,
+        photos,
+        created_at,
+        pizzerias!inner(
+          id,
+          name,
+          cuisine_styles,
+          latitude,
+          longitude
+        )
+      `
+      )
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false });
+
+    if (reviewError) throw reviewError;
+
+    // Get user achievements
+    const { data: achievements, error: achievementError } = await supabase
+      .from("user_achievements")
+      .select("*")
+      .eq("user_id", userId);
+
+    if (achievementError) throw achievementError;
+
+    // Calculate stats
+    const totalReviews = reviews?.length || 0;
+    const uniquePizzerias = new Set(
+      reviews?.map((r) => (r as any).pizzerias.id)
+    );
+    const totalPizzeriasVisited = uniquePizzerias.size;
+
+    const reviewsWithPhotos =
+      reviews?.filter((r) => r.photos && r.photos.length > 0).length || 0;
+
+    // Get unique pizza styles
+    const allStyles = new Set<string>();
+    reviews?.forEach((review) => {
+      const pizzeria = (review as any).pizzerias;
+      if (pizzeria?.cuisine_styles) {
+        pizzeria.cuisine_styles.forEach((style: string) =>
+          allStyles.add(style)
+        );
+      }
+    });
+
+    // Calculate consecutive review days
+    const consecutiveDays = calculateConsecutiveReviewDays(reviews || []);
+
+    // Calculate average rating
+    const totalRating =
+      reviews?.reduce((sum, r) => sum + r.overall_rating, 0) || 0;
+    const averageRating = totalReviews > 0 ? totalRating / totalReviews : 0;
+
+    // Find most common style
+    const styleCount: Record<string, number> = {};
+    reviews?.forEach((review) => {
+      const pizzeria = (review as any).pizzerias;
+      if (pizzeria?.cuisine_styles) {
+        pizzeria.cuisine_styles.forEach((style: string) => {
+          styleCount[style] = (styleCount[style] || 0) + 1;
+        });
+      }
+    });
+
+    const favoriteStyle = Object.entries(styleCount).reduce((a, b) =>
+      styleCount[a[0]] > styleCount[b[0]] ? a : b
+    )?.[0];
+
+    const stats: UserStats = {
+      total_reviews: totalReviews,
+      total_pizzerias_visited: totalPizzeriasVisited,
+      total_achievements: achievements?.length || 0,
+      reviews_with_photos: reviewsWithPhotos,
+      unique_pizza_styles: Array.from(allStyles),
+      consecutive_review_days: consecutiveDays,
+      average_rating_given: Math.round(averageRating * 10) / 10,
+      favorite_pizza_style: favoriteStyle,
+      recent_reviews: (reviews?.slice(0, 5) || []) as any,
+      achievements: (achievements || []) as UserAchievement[],
+    };
+
+    return {
+      success: true,
+      stats,
+    };
+  } catch (error) {
+    console.error("Error getting user stats:", error);
     return {
       success: false,
-      error: error instanceof Error ? error.message : "Unknown error occurred",
+      error: error instanceof Error ? error.message : "Unknown error",
+    };
+  }
+};
+
+/**
+ * Calculate consecutive review days
+ */
+const calculateConsecutiveReviewDays = (reviews: any[]): number => {
+  if (reviews.length === 0) return 0;
+
+  // Group reviews by date
+  const reviewDates = new Set(
+    reviews.map((r) => new Date(r.created_at).toDateString())
+  );
+
+  const sortedDates = Array.from(reviewDates)
+    .map((dateStr) => new Date(dateStr))
+    .sort((a, b) => b.getTime() - a.getTime());
+
+  let consecutiveDays = 1;
+  let currentDate = sortedDates[0];
+
+  for (let i = 1; i < sortedDates.length; i++) {
+    const nextDate = sortedDates[i];
+    const diffTime = currentDate.getTime() - nextDate.getTime();
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+    if (diffDays === 1) {
+      consecutiveDays++;
+      currentDate = nextDate;
+    } else {
+      break;
+    }
+  }
+
+  return consecutiveDays;
+};
+
+/**
+ * Get user's achievement progress for all achievements
+ */
+export const getAchievementProgress = async (
+  userId: string
+): Promise<{
+  success: boolean;
+  progress: AchievementProgress[];
+  error?: string;
+}> => {
+  try {
+    const { success, stats } = await getUserStats(userId);
+    if (!success || !stats) {
+      throw new Error("Failed to get user stats");
+    }
+
+    const { data: userAchievements, error: achievementError } = await supabase
+      .from("user_achievements")
+      .select("achievement_type, earned_at")
+      .eq("user_id", userId);
+
+    if (achievementError) throw achievementError;
+
+    const earnedAchievements = new Map(
+      userAchievements?.map((a) => [a.achievement_type, a.earned_at]) || []
+    );
+
+    const progress: AchievementProgress[] = getAllAchievements().map(
+      (achievement) => {
+        const currentProgress = getProgressForAchievement(
+          achievement.type,
+          stats
+        );
+        const isEarned = earnedAchievements.has(achievement.type);
+
+        return {
+          achievement_type: achievement.type,
+          current_progress: currentProgress,
+          target: achievement.criteria.target,
+          percentage: Math.min(
+            (currentProgress / achievement.criteria.target) * 100,
+            100
+          ),
+          is_earned: isEarned,
+          earned_at: earnedAchievements.get(achievement.type),
+        };
+      }
+    );
+
+    return {
+      success: true,
+      progress,
+    };
+  } catch (error) {
+    console.error("Error getting achievement progress:", error);
+    return {
+      success: false,
+      progress: [],
+      error: error instanceof Error ? error.message : "Unknown error",
     };
   }
 };

@@ -1,111 +1,211 @@
 // src/components/achievements/AchievementModal.tsx
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import {
   View,
   Text,
-  StyleSheet,
   Modal,
+  StyleSheet,
   TouchableOpacity,
   Animated,
   Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS, SPACING, BORDER_RADIUS } from "../../constants";
-import { AchievementType } from "../../types";
+import { UserAchievement } from "../../types";
 import { getAchievementByType } from "../../constants/achievements";
+import { AchievementBadge } from "./AchievementBadge";
 
 interface AchievementModalProps {
   visible: boolean;
-  achievementType: AchievementType | null;
+  achievement: UserAchievement | null;
   onClose: () => void;
+  onShare?: () => void;
 }
 
 const { width: screenWidth } = Dimensions.get("window");
 
 export const AchievementModal: React.FC<AchievementModalProps> = ({
   visible,
-  achievementType,
+  achievement,
   onClose,
+  onShare,
 }) => {
-  const scaleValue = React.useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0)).current;
+  const rotateAnim = useRef(new Animated.Value(0)).current;
+  const confettiAnim = useRef(new Animated.Value(0)).current;
 
-  React.useEffect(() => {
-    if (visible) {
-      Animated.spring(scaleValue, {
-        toValue: 1,
-        useNativeDriver: true,
-        tension: 50,
-        friction: 8,
-      }).start();
-    } else {
-      scaleValue.setValue(0);
+  useEffect(() => {
+    if (visible && achievement) {
+      // Reset animations
+      scaleAnim.setValue(0);
+      rotateAnim.setValue(0);
+      confettiAnim.setValue(0);
+
+      // Start celebration animation sequence
+      Animated.sequence([
+        // Scale in the badge
+        Animated.spring(scaleAnim, {
+          toValue: 1,
+          tension: 100,
+          friction: 8,
+          useNativeDriver: true,
+        }),
+        // Rotate celebration
+        Animated.timing(rotateAnim, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ]).start();
+
+      // Confetti animation
+      Animated.loop(
+        Animated.sequence([
+          Animated.timing(confettiAnim, {
+            toValue: 1,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+          Animated.timing(confettiAnim, {
+            toValue: 0,
+            duration: 1000,
+            useNativeDriver: true,
+          }),
+        ])
+      ).start();
     }
-  }, [visible, scaleValue]);
+  }, [visible, achievement]);
 
-  if (!achievementType || !visible) {
-    return null;
-  }
+  if (!achievement) return null;
 
-  const achievement = getAchievementByType(achievementType);
+  const achievementData = getAchievementByType(achievement.achievement_type);
 
-  if (!achievement) {
-    return null;
-  }
+  const scaleInterpolate = scaleAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, 1],
+  });
+
+  const rotateInterpolate = rotateAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: ["0deg", "360deg"],
+  });
+
+  const confettiOpacity = confettiAnim.interpolate({
+    inputRange: [0, 0.5, 1],
+    outputRange: [0, 1, 0],
+  });
+
+  const confettiTranslateY = confettiAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, -100],
+  });
 
   return (
     <Modal
       visible={visible}
-      transparent
+      transparent={true}
       animationType="fade"
       onRequestClose={onClose}
     >
       <View style={styles.overlay}>
-        <TouchableOpacity
-          style={styles.backdrop}
-          activeOpacity={1}
-          onPress={onClose}
-        />
+        {/* Confetti particles */}
+        {[...Array(8)].map((_, index) => (
+          <Animated.View
+            key={index}
+            style={[
+              styles.confetti,
+              {
+                left: (screenWidth / 9) * (index + 1),
+                backgroundColor:
+                  index % 2 === 0 ? COLORS.primary : achievementData.color,
+                opacity: confettiOpacity,
+                transform: [
+                  {
+                    translateY: confettiTranslateY,
+                  },
+                  {
+                    rotate: rotateInterpolate,
+                  },
+                ],
+              },
+            ]}
+          />
+        ))}
 
-        <Animated.View
-          style={[
-            styles.modalContainer,
-            {
-              transform: [{ scale: scaleValue }],
-            },
-          ]}
-        >
-          {/* Celebration Effects */}
-          <View style={styles.celebrationContainer}>
-            <Text style={styles.celebrationEmoji}>🎉</Text>
-            <Text style={styles.celebrationEmoji2}>✨</Text>
-            <Text style={styles.celebrationEmoji3}>🍕</Text>
-          </View>
+        <View style={styles.container}>
+          <View style={styles.content}>
+            {/* Close button */}
+            <TouchableOpacity style={styles.closeButton} onPress={onClose}>
+              <Ionicons name="close" size={24} color={COLORS.textLight} />
+            </TouchableOpacity>
 
-          {/* Achievement Badge */}
-          <View style={styles.badgeContainer}>
-            <View style={styles.badge}>
-              <Ionicons
-                name={achievement.icon as any}
-                size={60}
-                color={COLORS.white}
+            {/* Celebration header */}
+            <Text style={styles.celebrationText}>
+              🎉 Achievement Unlocked! 🎉
+            </Text>
+
+            {/* Animated achievement badge */}
+            <Animated.View
+              style={[
+                styles.badgeContainer,
+                {
+                  transform: [
+                    { scale: scaleInterpolate },
+                    { rotate: rotateInterpolate },
+                  ],
+                },
+              ]}
+            >
+              <AchievementBadge
+                achievement={achievementData}
+                progress={{
+                  achievement_type: achievement.achievement_type,
+                  current_progress: achievementData.criteria.target,
+                  target: achievementData.criteria.target,
+                  percentage: 100,
+                  is_earned: true,
+                  earned_at: achievement.earned_at,
+                }}
+                size="large"
+                showProgress={false}
               />
+            </Animated.View>
+
+            {/* Achievement details */}
+            <Text style={styles.achievementName}>{achievementData.name}</Text>
+            <Text style={styles.achievementDescription}>
+              {achievementData.description}
+            </Text>
+
+            {/* Achievement context */}
+            {achievement.metadata?.context && (
+              <View style={styles.contextContainer}>
+                <Ionicons name="location" size={16} color={COLORS.primary} />
+                <Text style={styles.contextText}>
+                  Achieved at {achievement.metadata.context}
+                </Text>
+              </View>
+            )}
+
+            {/* Action buttons */}
+            <View style={styles.buttonContainer}>
+              {onShare && (
+                <TouchableOpacity style={styles.shareButton} onPress={onShare}>
+                  <Ionicons
+                    name="share-social"
+                    size={20}
+                    color={COLORS.white}
+                  />
+                  <Text style={styles.shareButtonText}>Share</Text>
+                </TouchableOpacity>
+              )}
+
+              <TouchableOpacity style={styles.continueButton} onPress={onClose}>
+                <Text style={styles.continueButtonText}>Continue</Text>
+              </TouchableOpacity>
             </View>
           </View>
-
-          {/* Achievement Info */}
-          <View style={styles.infoContainer}>
-            <Text style={styles.congratsText}>Congratulations!</Text>
-            <Text style={styles.achievementName}>{achievement.name}</Text>
-            <Text style={styles.achievementDescription}>
-              {achievement.description}
-            </Text>
-          </View>
-
-          {/* Close Button */}
-          <TouchableOpacity style={styles.closeButton} onPress={onClose}>
-            <Text style={styles.closeButtonText}>Awesome!</Text>
-          </TouchableOpacity>
-        </Animated.View>
+        </View>
       </View>
     </Modal>
   );
@@ -114,111 +214,113 @@ export const AchievementModal: React.FC<AchievementModalProps> = ({
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: "rgba(0, 0, 0, 0.5)",
+    backgroundColor: "rgba(0,0,0,0.8)",
     justifyContent: "center",
     alignItems: "center",
   },
-  backdrop: {
+  confetti: {
     position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
+    top: "20%",
+    width: 8,
+    height: 8,
+    borderRadius: 4,
   },
-  modalContainer: {
+  container: {
+    width: screenWidth * 0.85,
+    maxWidth: 350,
+  },
+  content: {
     backgroundColor: COLORS.white,
     borderRadius: BORDER_RADIUS.lg,
-    paddingVertical: SPACING.xl,
-    paddingHorizontal: SPACING.lg,
+    padding: SPACING.xl,
     alignItems: "center",
-    width: screenWidth * 0.85,
-    maxWidth: 320,
-    elevation: 10,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 5 },
+    shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.3,
-    shadowRadius: 10,
+    shadowRadius: 20,
+    elevation: 10,
   },
-  celebrationContainer: {
+  closeButton: {
     position: "absolute",
-    top: -20,
-    left: 0,
-    right: 0,
-    height: 40,
+    top: SPACING.md,
+    right: SPACING.md,
+    zIndex: 1,
+    padding: SPACING.xs,
   },
-  celebrationEmoji: {
-    position: "absolute",
-    top: 0,
-    left: 20,
-    fontSize: 24,
-  },
-  celebrationEmoji2: {
-    position: "absolute",
-    top: 10,
-    right: 30,
-    fontSize: 20,
-  },
-  celebrationEmoji3: {
-    position: "absolute",
-    top: 5,
-    left: "50%",
-    fontSize: 22,
-    marginLeft: -11,
-  },
-  badgeContainer: {
-    marginTop: SPACING.md,
-    marginBottom: SPACING.lg,
-  },
-  badge: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    elevation: 5,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 3 },
-    shadowOpacity: 0.2,
-    shadowRadius: 5,
-  },
-  infoContainer: {
-    alignItems: "center",
-    marginBottom: SPACING.xl,
-  },
-  congratsText: {
-    fontSize: 24,
+  celebrationText: {
+    fontSize: 18,
     fontWeight: "bold",
     color: COLORS.primary,
-    marginBottom: SPACING.sm,
+    marginBottom: SPACING.lg,
+    textAlign: "center",
+  },
+  badgeContainer: {
+    marginBottom: SPACING.lg,
   },
   achievementName: {
-    fontSize: 20,
-    fontWeight: "600",
+    fontSize: 24,
+    fontWeight: "bold",
     color: COLORS.text,
     textAlign: "center",
-    marginBottom: SPACING.xs,
+    marginBottom: SPACING.sm,
   },
   achievementDescription: {
     fontSize: 16,
-    color: COLORS.textMuted,
+    color: COLORS.textLight,
     textAlign: "center",
+    marginBottom: SPACING.lg,
     lineHeight: 22,
   },
-  closeButton: {
-    backgroundColor: COLORS.primary,
-    paddingHorizontal: SPACING.xl,
-    paddingVertical: SPACING.md,
-    borderRadius: BORDER_RADIUS.lg,
-    elevation: 2,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 3,
+  contextContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.secondary,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.md,
+    marginBottom: SPACING.lg,
   },
-  closeButtonText: {
+  contextText: {
+    marginLeft: SPACING.xs,
+    color: COLORS.text,
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  buttonContainer: {
+    flexDirection: "row",
+    gap: SPACING.md,
+    width: "100%",
+  },
+  shareButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.primary,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    gap: SPACING.xs,
+  },
+  shareButtonText: {
     color: COLORS.white,
-    fontSize: 16,
     fontWeight: "600",
+    fontSize: 16,
+  },
+  continueButton: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    backgroundColor: COLORS.secondary,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+  },
+  continueButtonText: {
+    color: COLORS.text,
+    fontWeight: "600",
+    fontSize: 16,
   },
 });
+
+export default AchievementModal;

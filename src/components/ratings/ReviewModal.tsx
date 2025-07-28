@@ -1,5 +1,5 @@
 // src/components/ratings/ReviewModal.tsx
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   View,
   Text,
@@ -13,14 +13,17 @@ import {
   ScrollView,
   Alert,
   Image,
-} from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, BORDER_RADIUS } from '../../constants';
-import { DualRatingInput } from './DualRatingInput';
-import { PhotoUpload } from '../upload';
-import { uploadPhotos, STORAGE_BUCKETS } from '../../services/storage';
-import { createOrUpdateRating } from '../../utils';
-import { useAuth } from '../../hooks/useAuth';
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { COLORS, SPACING, BORDER_RADIUS } from "../../constants";
+import { DualRatingInput } from "./DualRatingInput";
+import { PhotoUpload } from "../upload";
+import { uploadPhotos, STORAGE_BUCKETS } from "../../services/storage";
+import { createOrUpdateRating } from "../../utils";
+import { useAuth } from "../../hooks/useAuth";
+import { checkAndAwardAchievements } from "../../services/achievementService";
+import { AchievementModal } from "../achievements";
+import { UserAchievement } from "../../types";
 
 interface ReviewModalProps {
   visible: boolean;
@@ -43,26 +46,36 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
   initialRating,
 }) => {
   const { user } = useAuth();
-  const [overallRating, setOverallRating] = useState(initialRating?.overallRating || 0);
-  const [crustRating, setCrustRating] = useState(initialRating?.crustRating || 0);
-  const [review, setReview] = useState(initialRating?.review || '');
+  const [overallRating, setOverallRating] = useState(
+    initialRating?.overallRating || 0
+  );
+  const [crustRating, setCrustRating] = useState(
+    initialRating?.crustRating || 0
+  );
+  const [review, setReview] = useState(initialRating?.review || "");
   const [photos, setPhotos] = useState<string[]>(initialRating?.photos || []);
   const [selectedPhotos, setSelectedPhotos] = useState<string[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+  const [newAchievements, setNewAchievements] = useState<UserAchievement[]>([]);
+  const [showAchievementModal, setShowAchievementModal] = useState(false);
+  const [currentAchievementIndex, setCurrentAchievementIndex] = useState(0);
+
   // Reset form when modal opens or initialRating changes
   useEffect(() => {
     if (visible) {
       setOverallRating(initialRating?.overallRating || 0);
       setCrustRating(initialRating?.crustRating || 0);
-      setReview(initialRating?.review || '');
+      setReview(initialRating?.review || "");
       setPhotos(initialRating?.photos || []);
       setSelectedPhotos([]);
     }
   }, [visible, initialRating]);
 
   // Handle rating change from DualRatingInput
-  const handleRatingChange = (newOverallRating: number, newCrustRating: number) => {
+  const handleRatingChange = (
+    newOverallRating: number,
+    newCrustRating: number
+  ) => {
     setOverallRating(newOverallRating);
     setCrustRating(newCrustRating);
   };
@@ -75,12 +88,15 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
   // Handle review submission
   const handleSubmit = async () => {
     if (!user) {
-      Alert.alert('Error', 'You need to be logged in to submit a review');
+      Alert.alert("Error", "You need to be logged in to submit a review");
       return;
     }
 
     if (overallRating === 0 || crustRating === 0) {
-      Alert.alert('Error', 'Please rate both overall experience and crust quality');
+      Alert.alert(
+        "Error",
+        "Please rate both overall experience and crust quality"
+      );
       return;
     }
 
@@ -89,7 +105,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
 
       // Upload new photos if any
       let photoUrls = [...photos]; // Start with existing photos
-      
+
       if (selectedPhotos.length > 0) {
         const uploadResult = await uploadPhotos(
           selectedPhotos,
@@ -98,7 +114,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
         );
 
         if (!uploadResult.success) {
-          throw new Error(uploadResult.error || 'Failed to upload photos');
+          throw new Error(uploadResult.error || "Failed to upload photos");
         }
 
         if (uploadResult.urls) {
@@ -117,21 +133,48 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
       });
 
       if (!success) {
-        throw new Error(error || 'Failed to submit review');
+        throw new Error(error || "Failed to submit review");
       }
 
-      // Clear form and close modal
-      Alert.alert('Success', 'Your review has been submitted!');
-      onReviewSubmitted();
-      onClose();
+      // Check for new achievements
+      const achievementResult = await checkAndAwardAchievements(user.id);
+      if (
+        achievementResult.success &&
+        achievementResult.newAchievements.length > 0
+      ) {
+        setNewAchievements(achievementResult.newAchievements);
+        setCurrentAchievementIndex(0);
+        setShowAchievementModal(true);
+      } else {
+        // No new achievements - show success and close
+        Alert.alert("Success", "Your review has been submitted!");
+        onReviewSubmitted();
+        onClose();
+      }
     } catch (error) {
-      console.error('Error submitting review:', error);
+      console.error("Error submitting review:", error);
       Alert.alert(
-        'Error',
-        error instanceof Error ? error.message : 'Failed to submit review'
+        "Error",
+        error instanceof Error ? error.message : "Failed to submit review"
       );
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const handleAchievementModalClose = () => {
+    if (currentAchievementIndex < newAchievements.length - 1) {
+      // Show next achievement
+      setCurrentAchievementIndex(currentAchievementIndex + 1);
+    } else {
+      // All achievements shown - close and show success
+      setShowAchievementModal(false);
+      setNewAchievements([]);
+      setCurrentAchievementIndex(0);
+
+      Alert.alert("Success", "Your review has been submitted!");
+      onReviewSubmitted();
+      onClose();
     }
   };
 
@@ -144,8 +187,8 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
     >
       <KeyboardAvoidingView
         style={styles.centeredView}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 40 : 0}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
       >
         <View style={styles.modalView}>
           {/* Header */}
@@ -204,7 +247,10 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
                   contentContainerStyle={styles.photoList}
                 >
                   {photos.map((photo, index) => (
-                    <View key={`existing-photo-${index}`} style={styles.photoContainer}>
+                    <View
+                      key={`existing-photo-${index}`}
+                      style={styles.photoContainer}
+                    >
                       <TouchableOpacity
                         onPress={() => {
                           // Remove photo from existing photos
@@ -214,9 +260,16 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
                         }}
                       >
                         <View style={styles.existingPhotoContainer}>
-                          <Image source={{ uri: photo }} style={styles.existingPhoto} />
+                          <Image
+                            source={{ uri: photo }}
+                            style={styles.existingPhoto}
+                          />
                           <View style={styles.removeButton}>
-                            <Ionicons name="close-circle" size={24} color={COLORS.error} />
+                            <Ionicons
+                              name="close-circle"
+                              size={24}
+                              color={COLORS.error}
+                            />
                           </View>
                         </View>
                       </TouchableOpacity>
@@ -229,7 +282,11 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
 
           {/* Submit Button */}
           <TouchableOpacity
-            style={[styles.submitButton, (isSubmitting || overallRating === 0 || crustRating === 0) && styles.disabledButton]}
+            style={[
+              styles.submitButton,
+              (isSubmitting || overallRating === 0 || crustRating === 0) &&
+                styles.disabledButton,
+            ]}
             onPress={handleSubmit}
             disabled={isSubmitting || overallRating === 0 || crustRating === 0}
           >
@@ -241,6 +298,22 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
           </TouchableOpacity>
         </View>
       </KeyboardAvoidingView>
+
+      {/* Achievement Celebration Modal */}
+      {showAchievementModal && newAchievements.length > 0 && (
+        <AchievementModal
+          visible={showAchievementModal}
+          achievement={newAchievements[currentAchievementIndex]}
+          onClose={handleAchievementModalClose}
+          onShare={() => {
+            // TODO: Implement sharing in Sprint 3
+            console.log(
+              "Share achievement:",
+              newAchievements[currentAchievementIndex]
+            );
+          }}
+        />
+      )}
     </Modal>
   );
 };
@@ -248,25 +321,25 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
 const styles = StyleSheet.create({
   centeredView: {
     flex: 1,
-    justifyContent: 'flex-end',
-    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: "flex-end",
+    backgroundColor: "rgba(0,0,0,0.5)",
   },
   modalView: {
     backgroundColor: COLORS.white,
     borderTopLeftRadius: BORDER_RADIUS.lg,
     borderTopRightRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
-    maxHeight: '90%',
+    maxHeight: "90%",
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: SPACING.md,
   },
   title: {
     fontSize: 20,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.text,
   },
   section: {
@@ -274,7 +347,7 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.text,
     marginBottom: SPACING.sm,
   },
@@ -284,13 +357,13 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md,
     padding: SPACING.md,
     height: 120,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
     color: COLORS.text,
   },
   characterCount: {
     fontSize: 12,
     color: COLORS.textMuted,
-    alignSelf: 'flex-end',
+    alignSelf: "flex-end",
     marginTop: SPACING.xs,
   },
   photoList: {
@@ -300,7 +373,7 @@ const styles = StyleSheet.create({
     marginRight: SPACING.sm,
   },
   existingPhotoContainer: {
-    position: 'relative',
+    position: "relative",
   },
   existingPhoto: {
     width: 100,
@@ -309,13 +382,13 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   removeButton: {
-    position: 'absolute',
+    position: "absolute",
     top: -8,
     right: -8,
     backgroundColor: COLORS.white,
     borderRadius: 12,
     elevation: 2,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 1,
@@ -324,7 +397,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.primary,
     paddingVertical: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: SPACING.md,
   },
   disabledButton: {
@@ -332,7 +405,7 @@ const styles = StyleSheet.create({
   },
   submitButtonText: {
     color: COLORS.white,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     fontSize: 16,
   },
 });

@@ -1,4 +1,4 @@
 // src/components/achievements/index.ts
-export { AchievementBadge } from "./AchievementBadge";
-export { AchievementGrid } from "./AchievementGrid";
-export { AchievementModal } from "./AchievementModal";
+export { default as AchievementBadge } from "./AchievementBadge";
+export { default as AchievementGrid } from "./AchievementGrid";
+export { default as AchievementModal } from "./AchievementModal";

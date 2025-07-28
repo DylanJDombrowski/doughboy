@@ -1,4 +1,4 @@
-// src/screens/tabs/ProfileScreen.tsx - Final Fix
+// src/screens/tabs/ProfileScreen.tsx - Updated with Achievements
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -9,31 +9,60 @@ import {
   Image,
   Alert,
   ScrollView,
+  RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useAuth } from "../../contexts/AuthContext";
 import { User, AchievementProgress } from "../../types";
 import { supabase } from "../../services/supabase";
-import { getUserAchievements } from "../../services/achievementService";
+import {
+  getUserStats,
+  getAchievementProgress,
+} from "../../services/achievementService";
 import { AchievementGrid } from "../../components/achievements";
+import { COLORS, SPACING, BORDER_RADIUS } from "../../constants";
 
 const ProfileScreen: React.FC = () => {
   const { user, signOut } = useAuth();
   const [profile, setProfile] = useState<User | null>(null);
-  const [achievements, setAchievements] = useState<AchievementProgress[]>([]);
   const [stats, setStats] = useState({
-    pizzeriasVisited: 0,
+    recipeCount: 0,
     savedCount: 0,
     ratingsCount: 0,
+    achievementCount: 0,
   });
+  const [achievementProgress, setAchievementProgress] = useState<
+    AchievementProgress[]
+  >([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   useEffect(() => {
     if (user) {
-      fetchProfile();
-      fetchStats();
-      fetchAchievements();
+      loadProfileData();
     }
   }, [user]);
+
+  const loadProfileData = async (isRefresh = false) => {
+    if (isRefresh) {
+      setRefreshing(true);
+    } else {
+      setLoading(true);
+    }
+
+    try {
+      await Promise.all([
+        fetchProfile(),
+        fetchStats(),
+        fetchAchievementProgress(),
+      ]);
+    } catch (error) {
+      console.error("Error loading profile data:", error);
+    } finally {
+      setLoading(false);
+      setRefreshing(false);
+    }
+  };
 
   const fetchProfile = async () => {
     if (!user) return;
@@ -47,17 +76,15 @@ const ProfileScreen: React.FC = () => {
 
       if (error) throw error;
 
-      // Transform the data to match our User interface (keeping null values)
       const transformedProfile: User = {
         ...data,
-        use_manual_location: data.use_manual_location ?? false, // Ensure boolean, not null
+        use_manual_location: data.use_manual_location ?? false,
         role:
           data.role === "user" ||
           data.role === "admin" ||
           data.role === "moderator"
             ? data.role
-            : "user", // Default to "user" if null or invalid
-        // All fields are already compatible since we updated the User interface
+            : "user",
       };
 
       setProfile(transformedProfile);
@@ -70,54 +97,52 @@ const ProfileScreen: React.FC = () => {
     if (!user) return;
 
     try {
-      const [savedRes, ratingsRes, uniquePizzeriasRes] = await Promise.all([
-        supabase
-          .from("saved_pizzerias")
-          .select("pizzeria_id", { count: "exact" })
-          .eq("user_id", user.id),
-        supabase
-          .from("pizzeria_ratings")
-          .select("id", { count: "exact" })
-          .eq("user_id", user.id),
-        supabase
-          .from("pizzeria_ratings")
-          .select("pizzeria_id")
-          .eq("user_id", user.id),
-      ]);
-
-      // Count unique pizzerias visited
-      const pizzeriaIds = uniquePizzeriasRes.data
-        ? uniquePizzeriasRes.data.map((r) => r.pizzeria_id)
-        : [];
-      const uniquePizzeriaIds: string[] = [];
-      for (const id of pizzeriaIds) {
-        if (uniquePizzeriaIds.indexOf(id) === -1) {
-          uniquePizzeriaIds.push(id);
-        }
-      }
-      const uniquePizzerias = uniquePizzeriaIds.length;
+      const [recipeRes, savedRes, ratingsRes, achievementsRes] =
+        await Promise.all([
+          supabase
+            .from("recipes")
+            .select("id", { count: "exact" })
+            .eq("user_id", user.id),
+          supabase
+            .from("saved_pizzerias")
+            .select("pizzeria_id", { count: "exact" })
+            .eq("user_id", user.id),
+          supabase
+            .from("pizzeria_ratings")
+            .select("id", { count: "exact" })
+            .eq("user_id", user.id),
+          supabase
+            .from("user_achievements")
+            .select("id", { count: "exact" })
+            .eq("user_id", user.id),
+        ]);
 
       setStats({
-        pizzeriasVisited: uniquePizzerias,
+        recipeCount: recipeRes.count || 0,
         savedCount: savedRes.count || 0,
         ratingsCount: ratingsRes.count || 0,
+        achievementCount: achievementsRes.count || 0,
       });
     } catch (error) {
       console.error("Error fetching stats:", error);
     }
   };
 
-  const fetchAchievements = async () => {
+  const fetchAchievementProgress = async () => {
     if (!user) return;
 
     try {
-      const result = await getUserAchievements(user.id);
-      if (result.success && result.achievements) {
-        setAchievements(result.achievements);
+      const { success, progress } = await getAchievementProgress(user.id);
+      if (success) {
+        setAchievementProgress(progress);
       }
     } catch (error) {
-      console.error("Error fetching achievements:", error);
+      console.error("Error fetching achievement progress:", error);
     }
+  };
+
+  const handleRefresh = () => {
+    loadProfileData(true);
   };
 
   const handleSignOut = () => {
@@ -127,7 +152,7 @@ const ProfileScreen: React.FC = () => {
     ]);
   };
 
-  if (!profile) {
+  if (loading && !profile) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
@@ -137,16 +162,28 @@ const ProfileScreen: React.FC = () => {
     );
   }
 
+  if (!profile) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.errorContainer}>
+          <Text style={styles.errorText}>Failed to load profile</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.header}>
-        <Text style={styles.title}>Profile</Text>
-      </View>
-
       <ScrollView
-        style={styles.scrollContainer}
-        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+        }
       >
+        <View style={styles.header}>
+          <Text style={styles.title}>Profile</Text>
+        </View>
+
         <View style={styles.profileSection}>
           <View style={styles.avatarContainer}>
             {profile.avatar_url ? (
@@ -178,35 +215,26 @@ const ProfileScreen: React.FC = () => {
 
         <View style={styles.statsSection}>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{stats.pizzeriasVisited}</Text>
-            <Text style={styles.statLabel}>Places Visited</Text>
+            <Text style={styles.statNumber}>{stats.ratingsCount}</Text>
+            <Text style={styles.statLabel}>Reviews</Text>
           </View>
           <View style={styles.statItem}>
             <Text style={styles.statNumber}>{stats.savedCount}</Text>
             <Text style={styles.statLabel}>Saved</Text>
           </View>
           <View style={styles.statItem}>
-            <Text style={styles.statNumber}>{stats.ratingsCount}</Text>
-            <Text style={styles.statLabel}>Reviews</Text>
+            <Text style={styles.statNumber}>{stats.achievementCount}</Text>
+            <Text style={styles.statLabel}>Achievements</Text>
           </View>
         </View>
 
         {/* Achievements Section */}
         <View style={styles.achievementsSection}>
-          <View style={styles.sectionHeader}>
-            <Text style={styles.sectionTitle}>Pizza Passport</Text>
-            <Text style={styles.sectionSubtitle}>
-              {achievements.filter((a) => a.is_earned).length} of{" "}
-              {achievements.length} achievements earned
-            </Text>
-          </View>
-          <View style={styles.achievementsContainer}>
-            <AchievementGrid
-              achievements={achievements}
-              size="small"
-              columns={4}
-            />
-          </View>
+          <AchievementGrid
+            progress={achievementProgress}
+            showTitle={true}
+            maxRows={2} // Show first 6 achievements, with "View All" button
+          />
         </View>
 
         <View style={styles.menuSection}>
@@ -241,29 +269,31 @@ const ProfileScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: COLORS.background,
+  },
+  scrollContent: {
+    paddingBottom: SPACING.xl,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: "#FFF",
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#8B4513",
-  },
-  scrollContainer: {
-    flex: 1,
+    color: COLORS.primaryDark,
   },
   profileSection: {
-    backgroundColor: "#FFF",
+    backgroundColor: COLORS.white,
     alignItems: "center",
-    paddingVertical: 32,
-    marginBottom: 16,
+    paddingVertical: SPACING.xl,
+    marginBottom: SPACING.md,
   },
   avatarContainer: {
-    marginBottom: 16,
+    marginBottom: SPACING.md,
   },
   avatar: {
     width: 80,
@@ -274,42 +304,43 @@ const styles = StyleSheet.create({
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: "#E0E0E0",
+    backgroundColor: COLORS.secondary,
     alignItems: "center",
     justifyContent: "center",
   },
   fullName: {
     fontSize: 24,
     fontWeight: "600",
-    color: "#333",
-    marginBottom: 4,
+    color: COLORS.text,
+    marginBottom: SPACING.xs / 2,
   },
   username: {
     fontSize: 16,
-    color: "#666",
-    marginBottom: 12,
+    color: COLORS.textLight,
+    marginBottom: SPACING.sm,
   },
   bio: {
     fontSize: 14,
-    color: "#666",
+    color: COLORS.textLight,
     textAlign: "center",
-    paddingHorizontal: 32,
-    marginBottom: 12,
+    paddingHorizontal: SPACING.xl,
+    marginBottom: SPACING.sm,
+    lineHeight: 20,
   },
   locationContainer: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 4,
+    gap: SPACING.xs / 2,
   },
   location: {
     fontSize: 14,
-    color: "#666",
+    color: COLORS.textLight,
   },
   statsSection: {
     flexDirection: "row",
-    backgroundColor: "#FFF",
-    paddingVertical: 20,
-    marginBottom: 16,
+    backgroundColor: COLORS.white,
+    paddingVertical: SPACING.lg,
+    marginBottom: SPACING.md,
   },
   statItem: {
     flex: 1,
@@ -318,51 +349,35 @@ const styles = StyleSheet.create({
   statNumber: {
     fontSize: 24,
     fontWeight: "600",
-    color: "#8B4513",
-    marginBottom: 4,
+    color: COLORS.primaryDark,
+    marginBottom: SPACING.xs / 2,
   },
   statLabel: {
     fontSize: 14,
-    color: "#666",
+    color: COLORS.textLight,
   },
   achievementsSection: {
-    backgroundColor: "#FFF",
-    marginBottom: 16,
-    paddingVertical: 20,
-  },
-  sectionHeader: {
-    paddingHorizontal: 20,
-    marginBottom: 16,
-  },
-  sectionTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-    color: "#8B4513",
-    marginBottom: 4,
-  },
-  sectionSubtitle: {
-    fontSize: 14,
-    color: "#666",
-  },
-  achievementsContainer: {
-    height: 200,
+    backgroundColor: COLORS.white,
+    marginBottom: SPACING.md,
+    paddingHorizontal: SPACING.md,
   },
   menuSection: {
-    backgroundColor: "#FFF",
+    backgroundColor: COLORS.white,
+    marginBottom: SPACING.md,
   },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 16,
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
     borderBottomWidth: 1,
-    borderBottomColor: "#F0F0F0",
+    borderBottomColor: COLORS.border,
   },
   menuText: {
     flex: 1,
     fontSize: 16,
-    color: "#333",
-    marginLeft: 12,
+    color: COLORS.text,
+    marginLeft: SPACING.sm,
   },
   signOutText: {
     color: "#FF3B30",
@@ -374,7 +389,16 @@ const styles = StyleSheet.create({
   },
   loadingText: {
     fontSize: 16,
-    color: "#666",
+    color: COLORS.textLight,
+  },
+  errorContainer: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  errorText: {
+    fontSize: 16,
+    color: COLORS.error,
   },
 });
 

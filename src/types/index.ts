@@ -120,14 +120,19 @@ export interface UserAchievement {
   user_id: string;
   achievement_type: AchievementType;
   earned_at: string;
-  metadata?: any;
+  metadata?: {
+    progress?: number;
+    target?: number;
+    context?: string;
+  };
 }
 
 export interface AchievementProgress {
   achievement_type: AchievementType;
-  is_earned: boolean;
   current_progress: number;
   target: number;
+  percentage: number;
+  is_earned: boolean;
   earned_at?: string;
 }
 
@@ -226,12 +231,15 @@ export interface YelpSearchResponse {
 export interface UserStats {
   total_reviews: number;
   total_pizzerias_visited: number;
+  total_achievements: number;
+  reviews_with_photos: number;
+  unique_pizza_styles: string[];
+  consecutive_review_days: number;
   average_rating_given: number;
-  favorite_pizza_style: string;
+  favorite_pizza_style?: string;
   recent_reviews: PizzeriaRating[];
-  badges: UserBadge[];
+  achievements: UserAchievement[];
 }
-
 export interface UserBadge {
   id: string;
   name: string;

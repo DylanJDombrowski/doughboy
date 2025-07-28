@@ -1,149 +1,159 @@
 // src/components/achievements/AchievementBadge.tsx
 import React from "react";
-import { View, Text, StyleSheet } from "react-native";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  ViewStyle,
+} from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS, SPACING, BORDER_RADIUS } from "../../constants";
+import { Achievement } from "../../constants/achievements";
 import { AchievementProgress } from "../../types";
-import { getAchievementByType } from "../../constants/achievements";
 
 interface AchievementBadgeProps {
-  achievement: AchievementProgress;
+  achievement: Achievement;
+  progress?: AchievementProgress;
   size?: "small" | "medium" | "large";
+  showProgress?: boolean;
+  onPress?: () => void;
+  style?: ViewStyle;
 }
 
 export const AchievementBadge: React.FC<AchievementBadgeProps> = ({
   achievement,
+  progress,
   size = "medium",
+  showProgress = true,
+  onPress,
+  style,
 }) => {
-  const achievementConfig = getAchievementByType(achievement.achievement_type);
+  const isEarned = progress?.is_earned || false;
+  const progressPercentage = progress?.percentage || 0;
 
-  if (!achievementConfig) {
-    return null;
-  }
+  const sizeConfig = {
+    small: { badgeSize: 60, iconSize: 28, fontSize: 12 },
+    medium: { badgeSize: 80, iconSize: 36, fontSize: 14 },
+    large: { badgeSize: 100, iconSize: 44, fontSize: 16 },
+  };
 
-  const isEarned = achievement.is_earned;
-  const progress = Math.min(achievement.current_progress, achievement.target);
-  const progressPercentage = (progress / achievement.target) * 100;
-
-  const badgeSize = size === "small" ? 60 : size === "large" ? 100 : 80;
-  const iconSize = size === "small" ? 24 : size === "large" ? 40 : 32;
-  const fontSize = size === "small" ? 10 : size === "large" ? 14 : 12;
+  const config = sizeConfig[size];
 
   const badgeStyle = [
     styles.badge,
     {
-      width: badgeSize,
-      height: badgeSize,
+      width: config.badgeSize,
+      height: config.badgeSize,
+      backgroundColor: isEarned ? achievement.color : COLORS.textMuted,
       opacity: isEarned ? 1 : 0.5,
-      backgroundColor: isEarned ? COLORS.primary : "#E0E0E0",
     },
+    style,
   ];
 
-  const textColor = isEarned ? COLORS.white : COLORS.textMuted;
+  const Component = onPress ? TouchableOpacity : View;
 
   return (
-    <View style={styles.container}>
+    <Component style={styles.container} onPress={onPress}>
       <View style={badgeStyle}>
         <Ionicons
-          name={achievementConfig.icon as any}
-          size={iconSize}
-          color={textColor}
+          name={achievement.icon as any}
+          size={config.iconSize}
+          color={COLORS.white}
         />
-        {!isEarned && progressPercentage > 0 && (
-          <View style={styles.progressContainer}>
-            <Text style={[styles.progressText, { fontSize: fontSize - 2 }]}>
-              {progress}/{achievement.target}
-            </Text>
+
+        {/* Progress ring for unearned achievements */}
+        {!isEarned && showProgress && progressPercentage > 0 && (
+          <View style={styles.progressRing}>
+            <View
+              style={[
+                styles.progressFill,
+                {
+                  transform: [
+                    { rotate: `${(progressPercentage / 100) * 360}deg` },
+                  ],
+                  borderColor: achievement.color,
+                },
+              ]}
+            />
           </View>
         )}
       </View>
 
-      {size !== "small" && (
-        <View style={styles.textContainer}>
-          <Text
-            style={[styles.achievementName, { fontSize }]}
-            numberOfLines={2}
-          >
-            {achievementConfig.name}
-          </Text>
-          <Text
-            style={[styles.achievementDescription, { fontSize: fontSize - 2 }]}
-            numberOfLines={3}
-          >
-            {achievementConfig.description}
-          </Text>
-          {!isEarned && (
-            <View style={styles.progressBar}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: `${progressPercentage}%` },
-                ]}
-              />
-            </View>
-          )}
-        </View>
+      <Text
+        style={[
+          styles.name,
+          {
+            fontSize: config.fontSize,
+            color: isEarned ? COLORS.text : COLORS.textLight,
+          },
+        ]}
+        numberOfLines={2}
+      >
+        {achievement.name}
+      </Text>
+
+      {showProgress && progress && (
+        <Text style={styles.progress}>
+          {isEarned
+            ? `Earned ${new Date(progress.earned_at!).toLocaleDateString()}`
+            : `${progress.current_progress}/${progress.target}`}
+        </Text>
       )}
-    </View>
+    </Component>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
     alignItems: "center",
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.sm,
   },
   badge: {
-    borderRadius: BORDER_RADIUS.round,
-    alignItems: "center",
+    borderRadius: 50,
     justifyContent: "center",
-    borderWidth: 2,
-    borderColor: COLORS.border,
-    elevation: 2,
+    alignItems: "center",
+    marginBottom: SPACING.xs,
+    position: "relative",
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    elevation: 3,
   },
-  progressContainer: {
+  progressRing: {
     position: "absolute",
-    bottom: -8,
-    backgroundColor: COLORS.white,
-    borderRadius: 8,
-    paddingHorizontal: 4,
-    paddingVertical: 2,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  progressText: {
-    color: COLORS.textMuted,
-    fontWeight: "600",
-  },
-  textContainer: {
-    marginTop: SPACING.sm,
-    alignItems: "center",
-    maxWidth: 120,
-  },
-  achievementName: {
-    fontWeight: "600",
-    color: COLORS.text,
-    textAlign: "center",
-    marginBottom: 2,
-  },
-  achievementDescription: {
-    color: COLORS.textMuted,
-    textAlign: "center",
-    marginBottom: SPACING.xs,
-  },
-  progressBar: {
-    width: "100%",
-    height: 4,
-    backgroundColor: COLORS.border,
-    borderRadius: 2,
+    top: -2,
+    left: -2,
+    right: -2,
+    bottom: -2,
+    borderRadius: 50,
+    borderWidth: 2,
+    borderColor: COLORS.secondary,
     overflow: "hidden",
   },
   progressFill: {
-    height: "100%",
-    backgroundColor: COLORS.primary,
+    position: "absolute",
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderWidth: 2,
+    borderRadius: 50,
+    borderRightColor: "transparent",
+    borderBottomColor: "transparent",
+    borderLeftColor: "transparent",
+  },
+  name: {
+    fontWeight: "600",
+    textAlign: "center",
+    marginBottom: SPACING.xs / 2,
+  },
+  progress: {
+    fontSize: 11,
+    color: COLORS.textMuted,
+    textAlign: "center",
   },
 });
+
+export default AchievementBadge;
