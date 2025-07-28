@@ -10,7 +10,6 @@ import {
   Alert,
   Linking,
   Image,
-  FlatList,
   Modal,
   ActivityIndicator,
 } from "react-native";

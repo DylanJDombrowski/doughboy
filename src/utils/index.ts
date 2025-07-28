@@ -1,11 +1,8 @@
-// src/utils/index.ts
-export * from "./rating";
+// src/utils/index.ts - Updated for Pizza Review Platform
 export * from "./pizzeriaRating";
 export * from "./savedPizzeria";
 
 // Re-export specific functions that are being imported
-export { createOrUpdateRating, getRatingStats } from "./rating";
-
 export {
   createOrUpdatePizzeriaRating,
   getPizzeriaRatingStats,
@@ -27,27 +24,25 @@ export const formatTime = (minutes: number): string => {
   }
 };
 
-export const formatHydration = (percentage: number): string => {
-  return `${percentage.toFixed(1)}%`;
-};
-
-export const formatDifficulty = (level: number): string => {
-  const difficulties = [
-    "",
-    "Beginner",
-    "Easy",
-    "Intermediate",
-    "Advanced",
-    "Expert",
-  ];
-  return difficulties[level] || "Unknown";
-};
-
 export const formatDistance = (miles: number): string => {
   if (miles < 1) {
     return `${(miles * 5280).toFixed(0)} ft`;
   }
   return `${miles.toFixed(1)} mi`;
+};
+
+export const formatPriceRange = (priceRange: number): string => {
+  const prices = ["", "$", "$$", "$$$", "$$$$"];
+  return prices[priceRange] || "N/A";
+};
+
+export const formatBusinessType = (businessType: string): string => {
+  const types: { [key: string]: string } = {
+    chain: "Chain",
+    independent: "Independent",
+    franchise: "Franchise",
+  };
+  return types[businessType] || businessType;
 };
 
 export const slugify = (text: string): string => {
@@ -59,11 +54,11 @@ export const slugify = (text: string): string => {
     .trim();
 };
 
-export const generateRecipeUrl = (recipe: {
+export const generatePizzeriaUrl = (pizzeria: {
   id: string;
-  title: string;
+  name: string;
 }): string => {
-  return `/recipe/${recipe.id}/${slugify(recipe.title)}`;
+  return `/pizzeria/${pizzeria.id}/${slugify(pizzeria.name)}`;
 };
 
 // Email validation
@@ -76,4 +71,24 @@ export const isValidEmail = (email: string): boolean => {
 export const isValidUsername = (username: string): boolean => {
   const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
   return usernameRegex.test(username);
+};
+
+// Calculate distance between two coordinates
+export const calculateDistance = (
+  lat1: number,
+  lon1: number,
+  lat2: number,
+  lon2: number
+): number => {
+  const R = 3959; // Earth's radius in miles
+  const dLat = ((lat2 - lat1) * Math.PI) / 180;
+  const dLon = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos((lat1 * Math.PI) / 180) *
+      Math.cos((lat2 * Math.PI) / 180) *
+      Math.sin(dLon / 2) *
+      Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
 };

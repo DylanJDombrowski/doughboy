@@ -1,60 +1,6 @@
-// src/types/index.ts - Final complete fix
+// src/types/index.ts - Updated for Pizza Review Platform
 import { Database } from "./database";
 export * from "./database";
-
-export interface Recipe {
-  id: string;
-  user_id: string;
-  title: string;
-  description?: string | null;
-  category: DoughCategory;
-  difficulty: number;
-  total_time_minutes: number;
-  servings: number;
-  hydration_percentage?: number | null;
-  is_featured: boolean;
-  is_public: boolean;
-  photos?: string[] | null;
-  ingredients?: Ingredient[];
-  process_steps?: ProcessStep[];
-  ratings?: RecipeRating[];
-  average_overall_rating?: number;
-  average_crust_rating?: number;
-  created_at: string;
-  updated_at: string;
-}
-
-export interface Ingredient {
-  id: string;
-  recipe_id: string;
-  name: string;
-  amount: number;
-  unit: string;
-  percentage?: number | null;
-  order_index: number;
-}
-
-export interface ProcessStep {
-  id: string;
-  recipe_id: string;
-  step_number: number;
-  title: string;
-  description?: string | null;
-  duration_minutes?: number | null;
-  temperature?: number | null;
-  order_index: number;
-}
-
-export interface RecipeRating {
-  id: string;
-  recipe_id: string;
-  user_id: string;
-  overall_rating: number;
-  crust_rating: number;
-  review?: string | null;
-  photos?: string[] | null;
-  created_at: string;
-}
 
 export interface Pizzeria {
   id: string;
@@ -64,15 +10,26 @@ export interface Pizzeria {
   longitude: number;
   phone?: string | null;
   website?: string | null;
-  verified: boolean | null; // Allow null from database
+  verified: boolean | null;
   photos?: string[] | null;
   description?: string | null;
   hours?: any | null;
+  // New enhanced fields
+  price_range?: number | null; // 1-4 for $-$$$$
+  business_type?: "chain" | "independent" | "franchise" | null;
+  cuisine_styles?: string[] | null;
+  api_source?: "yelp" | "user_submitted" | "foursquare" | "google" | null;
+  yelp_id?: string | null;
+  rating_external?: number | null;
+  review_count_external?: number | null;
+  last_updated?: string | null;
+  // Relations
   dough_styles?: PizzeriaDoughStyle[];
   pizzeria_dough_styles?: PizzeriaDoughStyle[];
   average_overall_rating?: number;
   average_crust_rating?: number;
   rating_count?: number;
+  total_ratings?: number;
   created_at: string;
 }
 
@@ -124,7 +81,7 @@ export interface PizzeriaRating {
   user_id: string;
   overall_rating: number;
   crust_rating: number;
-  review?: string | null; // Allow null from database
+  review?: string | null;
   photos?: string[] | null;
   created_at: string;
   user?: User;
@@ -153,3 +110,74 @@ export type PizzeriaInsert =
   Database["public"]["Tables"]["pizzerias"]["Insert"];
 export type PizzeriaRatingInsert =
   Database["public"]["Tables"]["pizzeria_ratings"]["Insert"];
+
+// Yelp API Response Types
+export interface YelpBusiness {
+  id: string;
+  name: string;
+  url: string;
+  phone: string;
+  display_phone: string;
+  image_url: string;
+  categories: Array<{
+    alias: string;
+    title: string;
+  }>;
+  rating: number;
+  review_count: number;
+  location: {
+    address1: string;
+    address2?: string;
+    address3?: string;
+    city: string;
+    zip_code: string;
+    country: string;
+    state: string;
+    display_address: string[];
+  };
+  coordinates: {
+    latitude: number;
+    longitude: number;
+  };
+  price?: string; // "$", "$$", "$$$", "$$$$"
+  photos: string[];
+  hours?: Array<{
+    open: Array<{
+      is_overnight: boolean;
+      start: string;
+      end: string;
+      day: number;
+    }>;
+    hours_type: string;
+    is_open_now: boolean;
+  }>;
+}
+
+export interface YelpSearchResponse {
+  businesses: YelpBusiness[];
+  total: number;
+  region: {
+    center: {
+      longitude: number;
+      latitude: number;
+    };
+  };
+}
+
+// Pizza Passport / User Stats
+export interface UserStats {
+  total_reviews: number;
+  total_pizzerias_visited: number;
+  average_rating_given: number;
+  favorite_pizza_style: string;
+  recent_reviews: PizzeriaRating[];
+  badges: UserBadge[];
+}
+
+export interface UserBadge {
+  id: string;
+  name: string;
+  description: string;
+  icon: string;
+  earned_at: string;
+}

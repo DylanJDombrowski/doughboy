@@ -14,44 +14,6 @@ export type Database = {
   }
   public: {
     Tables: {
-      ingredients: {
-        Row: {
-          amount: number
-          id: string
-          name: string
-          order_index: number
-          percentage: number | null
-          recipe_id: string
-          unit: string
-        }
-        Insert: {
-          amount: number
-          id?: string
-          name: string
-          order_index: number
-          percentage?: number | null
-          recipe_id: string
-          unit: string
-        }
-        Update: {
-          amount?: number
-          id?: string
-          name?: string
-          order_index?: number
-          percentage?: number | null
-          recipe_id?: string
-          unit?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "ingredients_recipe_id_fkey"
-            columns: ["recipe_id"]
-            isOneToOne: false
-            referencedRelation: "recipes"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       pizzeria_dough_styles: {
         Row: {
           created_at: string
@@ -147,195 +109,71 @@ export type Database = {
       pizzerias: {
         Row: {
           address: string
+          api_source: string | null
+          business_type: string | null
           created_at: string
+          cuisine_styles: string[] | null
           description: string | null
           hours: Json | null
           id: string
+          last_updated: string | null
           latitude: number
           longitude: number
           name: string
           phone: string | null
           photos: string[] | null
+          price_range: number | null
+          rating_external: number | null
+          review_count_external: number | null
           verified: boolean | null
           website: string | null
+          yelp_id: string | null
         }
         Insert: {
           address: string
+          api_source?: string | null
+          business_type?: string | null
           created_at?: string
+          cuisine_styles?: string[] | null
           description?: string | null
           hours?: Json | null
           id?: string
+          last_updated?: string | null
           latitude: number
           longitude: number
           name: string
           phone?: string | null
           photos?: string[] | null
+          price_range?: number | null
+          rating_external?: number | null
+          review_count_external?: number | null
           verified?: boolean | null
           website?: string | null
+          yelp_id?: string | null
         }
         Update: {
           address?: string
+          api_source?: string | null
+          business_type?: string | null
           created_at?: string
+          cuisine_styles?: string[] | null
           description?: string | null
           hours?: Json | null
           id?: string
+          last_updated?: string | null
           latitude?: number
           longitude?: number
           name?: string
           phone?: string | null
           photos?: string[] | null
+          price_range?: number | null
+          rating_external?: number | null
+          review_count_external?: number | null
           verified?: boolean | null
           website?: string | null
+          yelp_id?: string | null
         }
         Relationships: []
-      }
-      process_steps: {
-        Row: {
-          description: string | null
-          duration_minutes: number | null
-          id: string
-          order_index: number
-          recipe_id: string
-          step_number: number
-          temperature: number | null
-          title: string
-        }
-        Insert: {
-          description?: string | null
-          duration_minutes?: number | null
-          id?: string
-          order_index: number
-          recipe_id: string
-          step_number: number
-          temperature?: number | null
-          title: string
-        }
-        Update: {
-          description?: string | null
-          duration_minutes?: number | null
-          id?: string
-          order_index?: number
-          recipe_id?: string
-          step_number?: number
-          temperature?: number | null
-          title?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "process_steps_recipe_id_fkey"
-            columns: ["recipe_id"]
-            isOneToOne: false
-            referencedRelation: "recipes"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      recipe_ratings: {
-        Row: {
-          created_at: string
-          crust_rating: number | null
-          id: string
-          overall_rating: number
-          photos: string[] | null
-          recipe_id: string
-          review: string | null
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          crust_rating?: number | null
-          id?: string
-          overall_rating: number
-          photos?: string[] | null
-          recipe_id: string
-          review?: string | null
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          crust_rating?: number | null
-          id?: string
-          overall_rating?: number
-          photos?: string[] | null
-          recipe_id?: string
-          review?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "recipe_ratings_recipe_id_fkey"
-            columns: ["recipe_id"]
-            isOneToOne: false
-            referencedRelation: "recipes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "recipe_ratings_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      recipes: {
-        Row: {
-          category: string
-          created_at: string
-          description: string | null
-          difficulty: number
-          hydration_percentage: number | null
-          id: string
-          is_featured: boolean | null
-          is_public: boolean | null
-          photos: string[] | null
-          servings: number
-          title: string
-          total_time_minutes: number
-          updated_at: string
-          user_id: string
-        }
-        Insert: {
-          category: string
-          created_at?: string
-          description?: string | null
-          difficulty: number
-          hydration_percentage?: number | null
-          id?: string
-          is_featured?: boolean | null
-          is_public?: boolean | null
-          photos?: string[] | null
-          servings: number
-          title: string
-          total_time_minutes: number
-          updated_at?: string
-          user_id: string
-        }
-        Update: {
-          category?: string
-          created_at?: string
-          description?: string | null
-          difficulty?: number
-          hydration_percentage?: number | null
-          id?: string
-          is_featured?: boolean | null
-          is_public?: boolean | null
-          photos?: string[] | null
-          servings?: number
-          title?: string
-          total_time_minutes?: number
-          updated_at?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "recipes_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       saved_pizzerias: {
         Row: {
@@ -363,39 +201,6 @@ export type Database = {
           },
           {
             foreignKeyName: "saved_pizzerias_user_id_fkey"
-            columns: ["user_id"]
-            isOneToOne: false
-            referencedRelation: "users"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      saved_recipes: {
-        Row: {
-          created_at: string
-          recipe_id: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          recipe_id: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          recipe_id?: string
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "saved_recipes_recipe_id_fkey"
-            columns: ["recipe_id"]
-            isOneToOne: false
-            referencedRelation: "recipes"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "saved_recipes_user_id_fkey"
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
@@ -480,7 +285,32 @@ export type Database = {
       }
     }
     Functions: {
-      [_ in never]: never
+      get_nearby_pizzerias: {
+        Args: { user_lat: number; user_lon: number; radius_km?: number }
+        Returns: {
+          id: string
+          name: string
+          address: string
+          latitude: number
+          longitude: number
+          phone: string
+          website: string
+          verified: boolean
+          photos: string[]
+          description: string
+          hours: Json
+          price_range: number
+          business_type: string
+          cuisine_styles: string[]
+          api_source: string
+          yelp_id: string
+          rating_external: number
+          review_count_external: number
+          last_updated: string
+          created_at: string
+          distance_km: number
+        }[]
+      }
     }
     Enums: {
       [_ in never]: never

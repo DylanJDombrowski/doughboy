@@ -1,4 +1,4 @@
-// src/screens/tabs/DiscoverScreen.tsx - Final Fix
+// src/screens/tabs/DiscoverScreen.tsx - Updated for Pizza Review Platform
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -8,121 +8,138 @@ import {
   SafeAreaView,
   TouchableOpacity,
   Image,
+  TextInput,
+  ActivityIndicator,
 } from "react-native";
-import { Recipe } from "../../types";
-import { supabase } from "../../services/supabase";
-
-// Create a more flexible interface for recipes from the database
-interface RecipeWithRating {
-  id: string;
-  user_id: string;
-  title: string;
-  description?: string | null;
-  category: string;
-  difficulty: number;
-  total_time_minutes: number;
-  servings: number;
-  hydration_percentage?: number | null;
-  is_featured: boolean | null;
-  is_public: boolean | null;
-  photos?: string[] | null;
-  created_at: string;
-  updated_at: string;
-  average_overall_rating?: number;
-  recipe_ratings?: { overall_rating: number; crust_rating: number }[];
-  ingredients?: Recipe["ingredients"];
-  process_steps?: Recipe["process_steps"];
-}
+import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
+import { useLocation } from "../../contexts/LocationContext";
+import { discoverPizzaPlaces } from "../../services/osmPizzaService";
+import { DualRatingDisplay } from "../../components/ratings";
+import { COLORS, SPACING, BORDER_RADIUS } from "../../constants";
+import { Pizzeria } from "../../types";
 
 const DiscoverScreen: React.FC = () => {
-  const [recipes, setRecipes] = useState<RecipeWithRating[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<"all" | "featured" | "trending">(
-    "featured"
-  );
+  const router = useRouter();
+  const { location } = useLocation();
+  const [pizzerias, setPizzerias] = useState<Pizzeria[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filter, setFilter] = useState<"all" | "nearby" | "rated">("nearby");
 
   useEffect(() => {
-    fetchRecipes();
-  }, [filter]);
+    if (location && filter === "nearby") {
+      loadNearbyPizzerias();
+    }
+  }, [location, filter]);
 
-  const fetchRecipes = async () => {
+  const loadNearbyPizzerias = async () => {
+    if (!location) return;
+
     try {
       setLoading(true);
+      const result = await discoverPizzaPlaces(
+        location.coords.latitude,
+        location.coords.longitude,
+        15 // 15km radius
+      );
 
-      let query = supabase.from("recipes").select("*").eq("is_public", true);
-
-      if (filter === "featured") {
-        query = query.eq("is_featured", true);
-      }
-
-      const { data: recipes, error } = await query
-        .order("created_at", { ascending: false })
-        .limit(20);
-
-      if (error) throw error;
-
-      // Get ratings separately if recipes exist
-      if (recipes && recipes.length > 0) {
-        const recipeIds = recipes.map((r) => r.id);
-        const { data: ratings } = await supabase
-          .from("recipe_ratings")
-          .select("recipe_id, overall_rating, crust_rating")
-          .in("recipe_id", recipeIds);
-
-        // Calculate average ratings
-        const recipesWithRatings: RecipeWithRating[] = recipes.map((recipe) => {
-          const recipeRatings =
-            ratings?.filter((r) => r.recipe_id === recipe.id) || [];
-          const average_overall_rating =
-            recipeRatings.length > 0
-              ? recipeRatings.reduce(
-                  (sum: number, r: { overall_rating: number }) =>
-                    sum + r.overall_rating,
-                  0
-                ) / recipeRatings.length
-              : 0;
-
-          return {
-            ...recipe,
-            average_overall_rating,
-            ingredients: undefined,
-            process_steps: undefined,
-          } as RecipeWithRating;
-        });
-
-        setRecipes(recipesWithRatings);
-      } else {
-        setRecipes([]);
+      if (result.success) {
+        setPizzerias(result.pizzerias);
       }
     } catch (error) {
-      console.error("Error fetching recipes:", error);
-      setRecipes([]);
+      console.error("Error loading pizzerias:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const renderRecipe = ({ item }: { item: RecipeWithRating }) => (
-    <TouchableOpacity style={styles.recipeCard}>
-      {item.photos && item.photos.length > 0 && (
-        <Image source={{ uri: item.photos[0] }} style={styles.recipeImage} />
-      )}
-      <View style={styles.recipeContent}>
-        <Text style={styles.recipeTitle}>{item.title}</Text>
-        <Text style={styles.recipeCategory}>
-          {item.category.replace("_", " ")}
-        </Text>
-        <View style={styles.recipeStats}>
-          <Text style={styles.difficulty}>
-            {"★".repeat(item.difficulty)}
-            {"☆".repeat(5 - item.difficulty)}
-          </Text>
-          <Text style={styles.time}>{item.total_time_minutes} min</Text>
+  const handlePizzeriaPress = (pizzeria: Pizzeria) => {
+    router.push(`/pizzeria/${pizzeria.id}`);
+  };
+
+  const filteredPizzerias = pizzerias.filter((pizzeria) => {
+    if (searchQuery) {
+      return (
+        pizzeria.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        pizzeria.address.toLowerCase().includes(searchQuery.toLowerCase())
+      );
+    }
+    return true;
+  });
+
+  const renderPizzeria = ({ item }: { item: Pizzeria }) => (
+    <TouchableOpacity
+      style={styles.pizzeriaCard}
+      onPress={() => handlePizzeriaPress(item)}
+    >
+      {item.photos && item.photos.length > 0 ? (
+        <Image source={{ uri: item.photos[0] }} style={styles.pizzeriaImage} />
+      ) : (
+        <View style={styles.placeholderImage}>
+          <Ionicons name="pizza-outline" size={32} color={COLORS.textLight} />
         </View>
-        {item.average_overall_rating && item.average_overall_rating > 0 && (
-          <Text style={styles.rating}>
-            ⭐ {item.average_overall_rating.toFixed(1)}
-          </Text>
+      )}
+
+      <View style={styles.pizzeriaContent}>
+        <View style={styles.pizzeriaHeader}>
+          <Text style={styles.pizzeriaName}>{item.name}</Text>
+          {item.verified && (
+            <Ionicons
+              name="checkmark-circle"
+              size={16}
+              color={COLORS.primary}
+            />
+          )}
+        </View>
+
+        <Text style={styles.pizzeriaAddress} numberOfLines={1}>
+          {item.address}
+        </Text>
+
+        <View style={styles.metaContainer}>
+          {item.business_type && (
+            <Text style={styles.businessType}>
+              {item.business_type.charAt(0).toUpperCase() +
+                item.business_type.slice(1)}
+            </Text>
+          )}
+
+          {(item as any).distance && (
+            <Text style={styles.distance}>
+              {(item as any).distance.toFixed(1)} mi
+            </Text>
+          )}
+        </View>
+
+        {((item.average_overall_rating && item.average_overall_rating > 0) ||
+          (item.average_crust_rating && item.average_crust_rating > 0)) && (
+          <View style={styles.ratingContainer}>
+            <DualRatingDisplay
+              overallRating={item.average_overall_rating || 0}
+              crustRating={item.average_crust_rating || 0}
+              compact={true}
+              size={14}
+              ratingCount={item.rating_count}
+            />
+          </View>
+        )}
+
+        {item.cuisine_styles && item.cuisine_styles.length > 0 && (
+          <View style={styles.cuisineContainer}>
+            {item.cuisine_styles.slice(0, 2).map((style, index) => (
+              <View key={index} style={styles.cuisineTag}>
+                <Text style={styles.cuisineText}>
+                  {style.replace("_", " ")}
+                </Text>
+              </View>
+            ))}
+            {item.cuisine_styles.length > 2 && (
+              <Text style={styles.moreStyles}>
+                +{item.cuisine_styles.length - 2} more
+              </Text>
+            )}
+          </View>
         )}
       </View>
     </TouchableOpacity>
@@ -131,9 +148,22 @@ const DiscoverScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.header}>
-        <Text style={styles.title}>Discover</Text>
+        <Text style={styles.title}>Discover Pizza</Text>
+
+        {/* Search Bar */}
+        <View style={styles.searchContainer}>
+          <Ionicons name="search" size={20} color={COLORS.textLight} />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search pizza places..."
+            value={searchQuery}
+            onChangeText={setSearchQuery}
+          />
+        </View>
+
+        {/* Filter Buttons */}
         <View style={styles.filterContainer}>
-          {(["featured", "all", "trending"] as const).map((filterOption) => (
+          {(["nearby", "all", "rated"] as const).map((filterOption) => (
             <TouchableOpacity
               key={filterOption}
               style={[
@@ -156,19 +186,33 @@ const DiscoverScreen: React.FC = () => {
       </View>
 
       <FlatList
-        data={recipes}
-        renderItem={renderRecipe}
+        data={filteredPizzerias}
+        renderItem={renderPizzeria}
         keyExtractor={(item) => item.id}
         refreshing={loading}
-        onRefresh={fetchRecipes}
+        onRefresh={loadNearbyPizzerias}
         contentContainerStyle={styles.list}
         ListEmptyComponent={
-          <View style={styles.emptyContainer}>
-            <Text style={styles.emptyText}>No recipes found</Text>
-            <Text style={styles.emptySubtext}>
-              Be the first to share a recipe!
-            </Text>
-          </View>
+          loading ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color={COLORS.primary} />
+              <Text style={styles.loadingText}>
+                Discovering pizza places...
+              </Text>
+            </View>
+          ) : (
+            <View style={styles.emptyContainer}>
+              <Ionicons
+                name="pizza-outline"
+                size={64}
+                color={COLORS.textLight}
+              />
+              <Text style={styles.emptyText}>No pizza places found</Text>
+              <Text style={styles.emptySubtext}>
+                Try adjusting your search or check your location settings
+              </Text>
+            </View>
+          )
         }
       />
     </SafeAreaView>
@@ -178,105 +222,177 @@ const DiscoverScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#F5F5F5",
+    backgroundColor: COLORS.background,
   },
   header: {
-    paddingHorizontal: 20,
-    paddingVertical: 16,
-    backgroundColor: "#FFF",
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.md,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
   },
   title: {
     fontSize: 28,
     fontWeight: "bold",
-    color: "#8B4513",
-    marginBottom: 16,
+    color: COLORS.primaryDark,
+    marginBottom: SPACING.md,
+  },
+  searchContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: COLORS.secondary,
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.sm,
+    marginBottom: SPACING.md,
+  },
+  searchInput: {
+    flex: 1,
+    marginLeft: SPACING.sm,
+    paddingVertical: SPACING.sm,
+    fontSize: 16,
+    color: COLORS.text,
   },
   filterContainer: {
     flexDirection: "row",
-    gap: 8,
+    gap: SPACING.sm,
   },
   filterButton: {
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    backgroundColor: "#E0E0E0",
+    paddingHorizontal: SPACING.md,
+    paddingVertical: SPACING.sm,
+    borderRadius: BORDER_RADIUS.round,
+    backgroundColor: COLORS.secondary,
   },
   filterButtonActive: {
-    backgroundColor: "#D4A574",
+    backgroundColor: COLORS.primary,
   },
   filterText: {
-    color: "#666",
+    color: COLORS.textLight,
     fontSize: 14,
     fontWeight: "500",
   },
   filterTextActive: {
-    color: "#FFF",
+    color: COLORS.white,
   },
   list: {
-    padding: 16,
+    padding: SPACING.md,
   },
-  recipeCard: {
-    backgroundColor: "#FFF",
-    borderRadius: 12,
-    marginBottom: 16,
+  pizzeriaCard: {
+    flexDirection: "row",
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.md,
+    marginBottom: SPACING.md,
     overflow: "hidden",
-    elevation: 2,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
+    elevation: 3,
   },
-  recipeImage: {
-    width: "100%",
-    height: 200,
+  pizzeriaImage: {
+    width: 100,
+    height: 100,
   },
-  recipeContent: {
-    padding: 16,
+  placeholderImage: {
+    width: 100,
+    height: 100,
+    backgroundColor: COLORS.secondary,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  recipeTitle: {
-    fontSize: 18,
+  pizzeriaContent: {
+    flex: 1,
+    padding: SPACING.sm,
+    justifyContent: "space-between",
+  },
+  pizzeriaHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: SPACING.xs,
+  },
+  pizzeriaName: {
+    fontSize: 16,
     fontWeight: "600",
-    color: "#333",
-    marginBottom: 4,
+    color: COLORS.text,
+    flex: 1,
+    marginRight: SPACING.xs,
   },
-  recipeCategory: {
+  pizzeriaAddress: {
     fontSize: 14,
-    color: "#666",
-    marginBottom: 8,
-    textTransform: "capitalize",
+    color: COLORS.textLight,
+    marginBottom: SPACING.xs,
   },
-  recipeStats: {
+  metaContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
+    marginBottom: SPACING.xs,
   },
-  difficulty: {
+  businessType: {
+    fontSize: 12,
+    color: COLORS.primary,
+    fontWeight: "500",
+  },
+  distance: {
+    fontSize: 12,
+    color: COLORS.textLight,
+    fontWeight: "500",
+  },
+  ratingContainer: {
+    marginBottom: SPACING.xs,
+  },
+  cuisineContainer: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    alignItems: "center",
+  },
+  cuisineTag: {
+    backgroundColor: COLORS.secondary,
+    paddingHorizontal: SPACING.xs,
+    paddingVertical: 2,
+    borderRadius: BORDER_RADIUS.sm,
+    marginRight: SPACING.xs,
+    marginBottom: 2,
+  },
+  cuisineText: {
+    fontSize: 11,
+    color: COLORS.primaryDark,
+    fontWeight: "500",
+    textTransform: "capitalize",
+  },
+  moreStyles: {
+    fontSize: 11,
+    color: COLORS.textLight,
+    fontStyle: "italic",
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: SPACING.xxl * 2,
+  },
+  loadingText: {
+    marginTop: SPACING.sm,
     fontSize: 16,
-    color: "#FFD700",
-  },
-  time: {
-    fontSize: 14,
-    color: "#666",
-  },
-  rating: {
-    fontSize: 14,
-    color: "#666",
-    marginTop: 8,
+    color: COLORS.textLight,
   },
   emptyContainer: {
-    alignItems: "center",
+    flex: 1,
     justifyContent: "center",
-    paddingVertical: 60,
+    alignItems: "center",
+    paddingVertical: SPACING.xxl * 2,
+    paddingHorizontal: SPACING.lg,
   },
   emptyText: {
     fontSize: 18,
     fontWeight: "600",
-    color: "#666",
-    marginBottom: 8,
+    color: COLORS.text,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.sm,
+    textAlign: "center",
   },
   emptySubtext: {
     fontSize: 14,
-    color: "#999",
+    color: COLORS.textLight,
     textAlign: "center",
   },
 });

@@ -1,4 +1,4 @@
-// app/(tabs)/_layout.tsx (Tab Layout)
+// app/(tabs)/_layout.tsx - Updated for Pizza Review Platform
 import React from "react";
 import { Tabs, Redirect } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
@@ -8,7 +8,7 @@ export default function TabLayout() {
   const { session, loading } = useAuth();
 
   if (loading) {
-    return null; // Could add a loading screen here
+    return null;
   }
 
   if (!session) {
@@ -29,7 +29,7 @@ export default function TabLayout() {
           title: "Discover",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
-              name={focused ? "compass" : "compass-outline"}
+              name={focused ? "search" : "search-outline"}
               size={28}
               color={color}
             />
@@ -37,12 +37,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="recipes"
+        name="map"
         options={{
-          title: "My Recipes",
+          title: "Map",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
-              name={focused ? "book" : "book-outline"}
+              name={focused ? "map" : "map-outline"}
               size={28}
               color={color}
             />
@@ -50,12 +50,12 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="near-me"
+        name="saved"
         options={{
-          title: "Near Me",
+          title: "Saved",
           tabBarIcon: ({ color, focused }) => (
             <Ionicons
-              name={focused ? "location" : "location-outline"}
+              name={focused ? "heart" : "heart-outline"}
               size={28}
               color={color}
             />

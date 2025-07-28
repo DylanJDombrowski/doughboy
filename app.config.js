@@ -18,13 +18,13 @@ export default {
       bundleIdentifier: "com.yourname.doughboy",
       infoPlist: {
         NSLocationWhenInUseUsageDescription:
-          "This app uses location to find pizzerias near you.",
+          "This app uses location to find pizza places near you.",
         NSLocationAlwaysAndWhenInUseUsageDescription:
-          "This app uses location to find pizzerias near you.",
+          "This app uses location to find pizza places near you.",
         NSCameraUsageDescription:
-          "This app uses the camera to take photos of your dough and pizza creations.",
+          "This app uses the camera to take photos of your pizza experiences.",
         NSPhotoLibraryUsageDescription:
-          "This app accesses your photo library to share your dough and pizza photos.",
+          "This app accesses your photo library to share your pizza photos.",
       },
     },
     android: {
@@ -56,9 +56,9 @@ export default {
         "expo-location",
         {
           locationAlwaysAndWhenInUsePermission:
-            "Allow Doughboy to use your location to find nearby pizzerias.",
+            "Allow Doughboy to use your location to find nearby pizza places.",
           locationWhenInUsePermission:
-            "Allow Doughboy to use your location to find nearby pizzerias.",
+            "Allow Doughboy to use your location to find nearby pizza places.",
         },
       ],
       "expo-apple-authentication",

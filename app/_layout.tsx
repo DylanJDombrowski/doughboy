@@ -1,4 +1,4 @@
-// app/_layout.tsx (Root Layout)
+// app/_layout.tsx - Updated Root Layout
 import React, { useEffect, useState } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -41,7 +41,7 @@ export default function RootLayout() {
         if (locationStatus !== "granted") {
           Alert.alert(
             "Location Permission",
-            "Location access is needed to find pizzerias near you.",
+            "Location access is needed to find pizza places near you.",
             [{ text: "OK" }]
           );
         }
@@ -53,7 +53,7 @@ export default function RootLayout() {
         if (notificationStatus !== "granted") {
           Alert.alert(
             "Notification Permission",
-            "Notifications help you track dough timing.",
+            "Notifications help keep you updated on new pizza places.",
             [{ text: "OK" }]
           );
         }
@@ -86,10 +86,6 @@ export default function RootLayout() {
         <Stack screenOptions={{ headerShown: false }}>
           <Stack.Screen name="(tabs)" />
           <Stack.Screen name="auth" />
-          <Stack.Screen
-            name="recipe/[id]"
-            options={{ presentation: "modal" }}
-          />
           <Stack.Screen
             name="pizzeria/[id]"
             options={{ presentation: "modal" }}
