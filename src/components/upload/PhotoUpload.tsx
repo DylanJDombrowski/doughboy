@@ -1,4 +1,4 @@
-// src/components/upload/PhotoUpload.tsx
+// src/components/upload/PhotoUpload.tsx - Fixed version
 import React, { useState } from "react";
 import {
   View,
@@ -20,13 +20,14 @@ interface PhotoUploadProps {
   initialPhotos?: string[];
 }
 
-export const PhotoUpload: React.FC<PhotoUploadProps> = ({
+const PhotoUpload: React.FC<PhotoUploadProps> = ({
   maxPhotos = 5,
   onPhotosSelected,
   initialPhotos = [],
 }) => {
   const [photos, setPhotos] = useState<string[]>(initialPhotos);
   const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
 
   // Request permission to access the device's photo library
   const requestPermission = async (): Promise<boolean> => {
@@ -170,6 +171,11 @@ export const PhotoUpload: React.FC<PhotoUploadProps> = ({
               >
                 <Ionicons name="close-circle" size={24} color={COLORS.error} />
               </TouchableOpacity>
+              
+              {/* Success indicator for uploaded photos */}
+              <View style={styles.successIndicator}>
+                <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
+              </View>
             </View>
           ))}
         </ScrollView>
@@ -213,6 +219,14 @@ export const PhotoUpload: React.FC<PhotoUploadProps> = ({
           )}
         </TouchableOpacity>
       </View>
+
+      {/* Upload status */}
+      {uploading && (
+        <View style={styles.uploadStatus}>
+          <ActivityIndicator size="small" color={COLORS.primary} />
+          <Text style={styles.uploadStatusText}>Uploading photos...</Text>
+        </View>
+      )}
     </View>
   );
 };
@@ -264,6 +278,14 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.2,
     shadowRadius: 1,
   },
+  successIndicator: {
+    position: "absolute",
+    bottom: 4,
+    right: 4,
+    backgroundColor: COLORS.white,
+    borderRadius: 10,
+    padding: 2,
+  },
   actions: {
     flexDirection: "row",
     justifyContent: "space-between",
@@ -282,11 +304,3 @@ const styles = StyleSheet.create({
   disabledButton: {
     backgroundColor: COLORS.textMuted,
   },
-  buttonText: {
-    color: COLORS.white,
-    fontWeight: "600",
-    marginLeft: SPACING.xs,
-  },
-});
-
-export default PhotoUpload;

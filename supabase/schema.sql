@@ -52,6 +52,60 @@ CREATE EXTENSION IF NOT EXISTS "uuid-ossp" WITH SCHEMA "extensions";
 
 
 
+CREATE OR REPLACE FUNCTION "public"."get_nearby_pizzerias"("user_lat" double precision, "user_lon" double precision, "radius_km" double precision DEFAULT 10) RETURNS TABLE("id" "uuid", "name" "text", "address" "text", "latitude" numeric, "longitude" numeric, "phone" "text", "website" "text", "verified" boolean, "photos" "text"[], "description" "text", "hours" "jsonb", "price_range" integer, "business_type" "text", "cuisine_styles" "text"[], "api_source" "text", "yelp_id" "text", "rating_external" numeric, "review_count_external" integer, "last_updated" timestamp with time zone, "created_at" timestamp with time zone, "distance_km" double precision)
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  RETURN QUERY
+  SELECT 
+    p.id,
+    p.name,
+    p.address,
+    p.latitude,
+    p.longitude,
+    p.phone,
+    p.website,
+    p.verified,
+    p.photos,
+    p.description,
+    p.hours,
+    p.price_range,
+    p.business_type,
+    p.cuisine_styles,
+    p.api_source,
+    p.yelp_id,
+    p.rating_external,
+    p.review_count_external,
+    p.last_updated,
+    p.created_at,
+    -- Calculate distance using Haversine formula
+    (
+      6371 * acos(
+        cos(radians(user_lat)) * 
+        cos(radians(p.latitude::FLOAT)) * 
+        cos(radians(p.longitude::FLOAT) - radians(user_lon)) + 
+        sin(radians(user_lat)) * 
+        sin(radians(p.latitude::FLOAT))
+      )
+    )::FLOAT AS distance_km
+  FROM pizzerias p
+  WHERE (
+    6371 * acos(
+      cos(radians(user_lat)) * 
+      cos(radians(p.latitude::FLOAT)) * 
+      cos(radians(p.longitude::FLOAT) - radians(user_lon)) + 
+      sin(radians(user_lat)) * 
+      sin(radians(p.latitude::FLOAT))
+    )
+  ) <= radius_km
+  ORDER BY distance_km;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."get_nearby_pizzerias"("user_lat" double precision, "user_lon" double precision, "radius_km" double precision) OWNER TO "postgres";
+
+
 CREATE OR REPLACE FUNCTION "public"."handle_new_user"() RETURNS "trigger"
     LANGUAGE "plpgsql" SECURITY DEFINER
     AS $$
@@ -84,23 +138,22 @@ $$;
 
 ALTER FUNCTION "public"."handle_updated_at"() OWNER TO "postgres";
 
+
+CREATE OR REPLACE FUNCTION "public"."update_pizzeria_timestamp"() RETURNS "trigger"
+    LANGUAGE "plpgsql"
+    AS $$
+BEGIN
+  NEW.last_updated = timezone('utc'::text, now());
+  RETURN NEW;
+END;
+$$;
+
+
+ALTER FUNCTION "public"."update_pizzeria_timestamp"() OWNER TO "postgres";
+
 SET default_tablespace = '';
 
 SET default_table_access_method = "heap";
-
-
-CREATE TABLE IF NOT EXISTS "public"."ingredients" (
-    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
-    "recipe_id" "uuid" NOT NULL,
-    "name" "text" NOT NULL,
-    "amount" numeric NOT NULL,
-    "unit" "text" NOT NULL,
-    "percentage" numeric,
-    "order_index" integer NOT NULL
-);
-
-
-ALTER TABLE "public"."ingredients" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."pizzeria_dough_styles" (
@@ -130,6 +183,7 @@ CREATE TABLE IF NOT EXISTS "public"."pizzeria_ratings" (
     "review" "text",
     "photos" "text"[],
     "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
+    "photo_metadata" "jsonb" DEFAULT '[]'::"jsonb",
     CONSTRAINT "pizzeria_ratings_crust_rating_check" CHECK ((("crust_rating" >= 1) AND ("crust_rating" <= 5))),
     CONSTRAINT "pizzeria_ratings_overall_rating_check" CHECK ((("overall_rating" >= 1) AND ("overall_rating" <= 5)))
 );
@@ -167,66 +221,50 @@ CREATE TABLE IF NOT EXISTS "public"."pizzerias" (
     "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
     "photos" "text"[],
     "description" "text",
-    "hours" "jsonb"
+    "hours" "jsonb",
+    "price_range" integer,
+    "business_type" "text",
+    "cuisine_styles" "text"[],
+    "api_source" "text" DEFAULT 'user_submitted'::"text",
+    "yelp_id" "text",
+    "rating_external" numeric(2,1),
+    "review_count_external" integer DEFAULT 0,
+    "last_updated" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()),
+    CONSTRAINT "pizzerias_api_source_check" CHECK (("api_source" = ANY (ARRAY['yelp'::"text", 'user_submitted'::"text", 'foursquare'::"text", 'google'::"text", 'openstreetmap'::"text"]))),
+    CONSTRAINT "pizzerias_business_type_check" CHECK (("business_type" = ANY (ARRAY['chain'::"text", 'independent'::"text", 'franchise'::"text"]))),
+    CONSTRAINT "pizzerias_price_range_check" CHECK ((("price_range" >= 1) AND ("price_range" <= 4)))
 );
 
 
 ALTER TABLE "public"."pizzerias" OWNER TO "postgres";
 
 
-CREATE TABLE IF NOT EXISTS "public"."process_steps" (
-    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
-    "recipe_id" "uuid" NOT NULL,
-    "step_number" integer NOT NULL,
-    "title" "text" NOT NULL,
-    "description" "text",
-    "duration_minutes" integer,
-    "temperature" integer,
-    "order_index" integer NOT NULL
-);
+COMMENT ON COLUMN "public"."pizzerias"."price_range" IS '1 = $, 2 = $$, 3 = $$$, 4 = $$$$';
 
 
-ALTER TABLE "public"."process_steps" OWNER TO "postgres";
+
+COMMENT ON COLUMN "public"."pizzerias"."business_type" IS 'Type of business: chain, independent, or franchise';
 
 
-CREATE TABLE IF NOT EXISTS "public"."recipe_ratings" (
-    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
-    "recipe_id" "uuid" NOT NULL,
-    "user_id" "uuid" NOT NULL,
-    "overall_rating" integer NOT NULL,
-    "review" "text",
-    "photos" "text"[],
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "crust_rating" integer,
-    CONSTRAINT "recipe_ratings_crust_rating_check" CHECK ((("crust_rating" >= 1) AND ("crust_rating" <= 5))),
-    CONSTRAINT "recipe_ratings_rating_check" CHECK ((("overall_rating" >= 1) AND ("overall_rating" <= 5)))
-);
+
+COMMENT ON COLUMN "public"."pizzerias"."cuisine_styles" IS 'Array of pizza styles this place specializes in';
 
 
-ALTER TABLE "public"."recipe_ratings" OWNER TO "postgres";
+
+COMMENT ON COLUMN "public"."pizzerias"."api_source" IS 'Source where this pizzeria data came from';
 
 
-CREATE TABLE IF NOT EXISTS "public"."recipes" (
-    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
-    "user_id" "uuid" NOT NULL,
-    "title" "text" NOT NULL,
-    "description" "text",
-    "category" "text" NOT NULL,
-    "difficulty" integer NOT NULL,
-    "total_time_minutes" integer NOT NULL,
-    "servings" integer NOT NULL,
-    "hydration_percentage" numeric,
-    "is_featured" boolean DEFAULT false,
-    "is_public" boolean DEFAULT true,
-    "photos" "text"[],
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    "updated_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
-    CONSTRAINT "recipes_category_check" CHECK (("category" = ANY (ARRAY['neapolitan'::"text", 'ny_style'::"text", 'chicago_deep_dish'::"text", 'sicilian'::"text", 'focaccia'::"text", 'sourdough'::"text", 'detroit_style'::"text", 'pan_pizza'::"text", 'thin_crust'::"text", 'whole_wheat'::"text", 'gluten_free'::"text"]))),
-    CONSTRAINT "recipes_difficulty_check" CHECK ((("difficulty" >= 1) AND ("difficulty" <= 5)))
-);
+
+COMMENT ON COLUMN "public"."pizzerias"."yelp_id" IS 'Yelp business ID for API correlation';
 
 
-ALTER TABLE "public"."recipes" OWNER TO "postgres";
+
+COMMENT ON COLUMN "public"."pizzerias"."rating_external" IS 'External API rating (e.g., Yelp rating)';
+
+
+
+COMMENT ON COLUMN "public"."pizzerias"."review_count_external" IS 'Number of reviews on external platform';
+
 
 
 CREATE TABLE IF NOT EXISTS "public"."saved_pizzerias" (
@@ -239,14 +277,16 @@ CREATE TABLE IF NOT EXISTS "public"."saved_pizzerias" (
 ALTER TABLE "public"."saved_pizzerias" OWNER TO "postgres";
 
 
-CREATE TABLE IF NOT EXISTS "public"."saved_recipes" (
+CREATE TABLE IF NOT EXISTS "public"."user_achievements" (
+    "id" "uuid" DEFAULT "extensions"."uuid_generate_v4"() NOT NULL,
     "user_id" "uuid" NOT NULL,
-    "recipe_id" "uuid" NOT NULL,
-    "created_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL
+    "achievement_type" "text" NOT NULL,
+    "earned_at" timestamp with time zone DEFAULT "timezone"('utc'::"text", "now"()) NOT NULL,
+    "metadata" "jsonb"
 );
 
 
-ALTER TABLE "public"."saved_recipes" OWNER TO "postgres";
+ALTER TABLE "public"."user_achievements" OWNER TO "postgres";
 
 
 CREATE TABLE IF NOT EXISTS "public"."users" (
@@ -271,11 +311,6 @@ CREATE TABLE IF NOT EXISTS "public"."users" (
 ALTER TABLE "public"."users" OWNER TO "postgres";
 
 
-ALTER TABLE ONLY "public"."ingredients"
-    ADD CONSTRAINT "ingredients_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."pizzeria_dough_styles"
     ADD CONSTRAINT "pizzeria_dough_styles_pkey" PRIMARY KEY ("id");
 
@@ -296,33 +331,18 @@ ALTER TABLE ONLY "public"."pizzerias"
 
 
 
-ALTER TABLE ONLY "public"."process_steps"
-    ADD CONSTRAINT "process_steps_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "public"."recipe_ratings"
-    ADD CONSTRAINT "recipe_ratings_pkey" PRIMARY KEY ("id");
-
-
-
-ALTER TABLE ONLY "public"."recipe_ratings"
-    ADD CONSTRAINT "recipe_ratings_recipe_id_user_id_key" UNIQUE ("recipe_id", "user_id");
-
-
-
-ALTER TABLE ONLY "public"."recipes"
-    ADD CONSTRAINT "recipes_pkey" PRIMARY KEY ("id");
-
-
-
 ALTER TABLE ONLY "public"."saved_pizzerias"
     ADD CONSTRAINT "saved_pizzerias_pkey" PRIMARY KEY ("user_id", "pizzeria_id");
 
 
 
-ALTER TABLE ONLY "public"."saved_recipes"
-    ADD CONSTRAINT "saved_recipes_pkey" PRIMARY KEY ("user_id", "recipe_id");
+ALTER TABLE ONLY "public"."user_achievements"
+    ADD CONSTRAINT "user_achievements_pkey" PRIMARY KEY ("id");
+
+
+
+ALTER TABLE ONLY "public"."user_achievements"
+    ADD CONSTRAINT "user_achievements_user_achievement_unique" UNIQUE ("user_id", "achievement_type");
 
 
 
@@ -344,7 +364,31 @@ CREATE INDEX "idx_pizzeria_dough_styles_status" ON "public"."pizzeria_dough_styl
 
 
 
+CREATE INDEX "idx_pizzeria_ratings_photo_metadata" ON "public"."pizzeria_ratings" USING "gin" ("photo_metadata");
+
+
+
 CREATE INDEX "idx_pizzeria_ratings_pizzeria_id" ON "public"."pizzeria_ratings" USING "btree" ("pizzeria_id");
+
+
+
+CREATE INDEX "idx_pizzerias_api_source" ON "public"."pizzerias" USING "btree" ("api_source");
+
+
+
+CREATE INDEX "idx_pizzerias_business_type" ON "public"."pizzerias" USING "btree" ("business_type");
+
+
+
+CREATE INDEX "idx_pizzerias_location" ON "public"."pizzerias" USING "btree" ("latitude", "longitude");
+
+
+
+CREATE INDEX "idx_pizzerias_price_range" ON "public"."pizzerias" USING "btree" ("price_range");
+
+
+
+CREATE INDEX "idx_pizzerias_yelp_id" ON "public"."pizzerias" USING "btree" ("yelp_id");
 
 
 
@@ -356,11 +400,15 @@ CREATE INDEX "idx_saved_pizzerias_user_id" ON "public"."saved_pizzerias" USING "
 
 
 
+CREATE INDEX "idx_user_achievements_type" ON "public"."user_achievements" USING "btree" ("achievement_type");
+
+
+
+CREATE INDEX "idx_user_achievements_user_id" ON "public"."user_achievements" USING "btree" ("user_id");
+
+
+
 CREATE OR REPLACE TRIGGER "handle_updated_at" BEFORE UPDATE ON "public"."pizzerias" FOR EACH ROW EXECUTE FUNCTION "public"."handle_updated_at"();
-
-
-
-CREATE OR REPLACE TRIGGER "handle_updated_at" BEFORE UPDATE ON "public"."recipes" FOR EACH ROW EXECUTE FUNCTION "public"."handle_updated_at"();
 
 
 
@@ -368,8 +416,7 @@ CREATE OR REPLACE TRIGGER "handle_updated_at" BEFORE UPDATE ON "public"."users" 
 
 
 
-ALTER TABLE ONLY "public"."ingredients"
-    ADD CONSTRAINT "ingredients_recipe_id_fkey" FOREIGN KEY ("recipe_id") REFERENCES "public"."recipes"("id") ON DELETE CASCADE;
+CREATE OR REPLACE TRIGGER "update_pizzerias_timestamp" BEFORE UPDATE ON "public"."pizzerias" FOR EACH ROW EXECUTE FUNCTION "public"."update_pizzeria_timestamp"();
 
 
 
@@ -388,26 +435,6 @@ ALTER TABLE ONLY "public"."pizzeria_ratings"
 
 
 
-ALTER TABLE ONLY "public"."process_steps"
-    ADD CONSTRAINT "process_steps_recipe_id_fkey" FOREIGN KEY ("recipe_id") REFERENCES "public"."recipes"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."recipe_ratings"
-    ADD CONSTRAINT "recipe_ratings_recipe_id_fkey" FOREIGN KEY ("recipe_id") REFERENCES "public"."recipes"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."recipe_ratings"
-    ADD CONSTRAINT "recipe_ratings_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."recipes"
-    ADD CONSTRAINT "recipes_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
-
-
-
 ALTER TABLE ONLY "public"."saved_pizzerias"
     ADD CONSTRAINT "saved_pizzerias_pizzeria_id_fkey" FOREIGN KEY ("pizzeria_id") REFERENCES "public"."pizzerias"("id") ON DELETE CASCADE;
 
@@ -418,13 +445,8 @@ ALTER TABLE ONLY "public"."saved_pizzerias"
 
 
 
-ALTER TABLE ONLY "public"."saved_recipes"
-    ADD CONSTRAINT "saved_recipes_recipe_id_fkey" FOREIGN KEY ("recipe_id") REFERENCES "public"."recipes"("id") ON DELETE CASCADE;
-
-
-
-ALTER TABLE ONLY "public"."saved_recipes"
-    ADD CONSTRAINT "saved_recipes_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
+ALTER TABLE ONLY "public"."user_achievements"
+    ADD CONSTRAINT "user_achievements_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "public"."users"("id") ON DELETE CASCADE;
 
 
 
@@ -445,14 +467,6 @@ CREATE POLICY "Anyone can view pizzerias" ON "public"."pizzerias" FOR SELECT USI
 
 
 
-CREATE POLICY "Anyone can view public recipes" ON "public"."recipes" FOR SELECT USING (("is_public" = true));
-
-
-
-CREATE POLICY "Anyone can view ratings" ON "public"."recipe_ratings" FOR SELECT USING (true);
-
-
-
 CREATE POLICY "Authenticated users can create pizzerias" ON "public"."pizzerias" FOR INSERT WITH CHECK (("auth"."role"() = 'authenticated'::"text"));
 
 
@@ -461,15 +475,7 @@ CREATE POLICY "Authenticated users can submit dough styles" ON "public"."pizzeri
 
 
 
-CREATE POLICY "Ingredients follow recipe visibility" ON "public"."ingredients" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM "public"."recipes"
-  WHERE (("recipes"."id" = "ingredients"."recipe_id") AND (("recipes"."is_public" = true) OR ("recipes"."user_id" = "auth"."uid"()))))));
-
-
-
-CREATE POLICY "Steps follow recipe visibility" ON "public"."process_steps" FOR SELECT USING ((EXISTS ( SELECT 1
-   FROM "public"."recipes"
-  WHERE (("recipes"."id" = "process_steps"."recipe_id") AND (("recipes"."is_public" = true) OR ("recipes"."user_id" = "auth"."uid"()))))));
+CREATE POLICY "System can insert achievements" ON "public"."user_achievements" FOR INSERT WITH CHECK (true);
 
 
 
@@ -477,23 +483,7 @@ CREATE POLICY "Users can create pizzeria ratings" ON "public"."pizzeria_ratings"
 
 
 
-CREATE POLICY "Users can create ratings" ON "public"."recipe_ratings" FOR INSERT WITH CHECK (("auth"."uid"() = "user_id"));
-
-
-
-CREATE POLICY "Users can create recipes" ON "public"."recipes" FOR INSERT WITH CHECK (("auth"."uid"() = "user_id"));
-
-
-
 CREATE POLICY "Users can delete own pizzeria ratings" ON "public"."pizzeria_ratings" FOR DELETE USING (("auth"."uid"() = "user_id"));
-
-
-
-CREATE POLICY "Users can delete own ratings" ON "public"."recipe_ratings" FOR DELETE USING (("auth"."uid"() = "user_id"));
-
-
-
-CREATE POLICY "Users can delete own recipes" ON "public"."recipes" FOR DELETE USING (("auth"."uid"() = "user_id"));
 
 
 
@@ -501,31 +491,11 @@ CREATE POLICY "Users can insert own profile" ON "public"."users" FOR INSERT WITH
 
 
 
-CREATE POLICY "Users can manage ingredients for own recipes" ON "public"."ingredients" USING ((EXISTS ( SELECT 1
-   FROM "public"."recipes"
-  WHERE (("recipes"."id" = "ingredients"."recipe_id") AND ("recipes"."user_id" = "auth"."uid"())))));
-
-
-
-CREATE POLICY "Users can manage steps for own recipes" ON "public"."process_steps" USING ((EXISTS ( SELECT 1
-   FROM "public"."recipes"
-  WHERE (("recipes"."id" = "process_steps"."recipe_id") AND ("recipes"."user_id" = "auth"."uid"())))));
-
-
-
 CREATE POLICY "Users can save pizzerias" ON "public"."saved_pizzerias" FOR INSERT WITH CHECK (("auth"."uid"() = "user_id"));
 
 
 
-CREATE POLICY "Users can save recipes" ON "public"."saved_recipes" FOR INSERT WITH CHECK (("auth"."uid"() = "user_id"));
-
-
-
 CREATE POLICY "Users can unsave pizzerias" ON "public"."saved_pizzerias" FOR DELETE USING (("auth"."uid"() = "user_id"));
-
-
-
-CREATE POLICY "Users can unsave recipes" ON "public"."saved_recipes" FOR DELETE USING (("auth"."uid"() = "user_id"));
 
 
 
@@ -537,19 +507,7 @@ CREATE POLICY "Users can update own profile" ON "public"."users" FOR UPDATE USIN
 
 
 
-CREATE POLICY "Users can update own ratings" ON "public"."recipe_ratings" FOR UPDATE USING (("auth"."uid"() = "user_id"));
-
-
-
-CREATE POLICY "Users can update own recipes" ON "public"."recipes" FOR UPDATE USING (("auth"."uid"() = "user_id"));
-
-
-
 CREATE POLICY "Users can view all profiles" ON "public"."users" FOR SELECT USING (true);
-
-
-
-CREATE POLICY "Users can view own recipes" ON "public"."recipes" FOR SELECT USING (("auth"."uid"() = "user_id"));
 
 
 
@@ -557,11 +515,8 @@ CREATE POLICY "Users can view own saved pizzerias" ON "public"."saved_pizzerias"
 
 
 
-CREATE POLICY "Users can view own saved recipes" ON "public"."saved_recipes" FOR SELECT USING (("auth"."uid"() = "user_id"));
+CREATE POLICY "Users can view their own achievements" ON "public"."user_achievements" FOR SELECT USING (("auth"."uid"() = "user_id"));
 
-
-
-ALTER TABLE "public"."ingredients" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."pizzeria_dough_styles" ENABLE ROW LEVEL SECURITY;
@@ -573,19 +528,10 @@ ALTER TABLE "public"."pizzeria_ratings" ENABLE ROW LEVEL SECURITY;
 ALTER TABLE "public"."pizzerias" ENABLE ROW LEVEL SECURITY;
 
 
-ALTER TABLE "public"."process_steps" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."recipe_ratings" ENABLE ROW LEVEL SECURITY;
-
-
-ALTER TABLE "public"."recipes" ENABLE ROW LEVEL SECURITY;
-
-
 ALTER TABLE "public"."saved_pizzerias" ENABLE ROW LEVEL SECURITY;
 
 
-ALTER TABLE "public"."saved_recipes" ENABLE ROW LEVEL SECURITY;
+ALTER TABLE "public"."user_achievements" ENABLE ROW LEVEL SECURITY;
 
 
 ALTER TABLE "public"."users" ENABLE ROW LEVEL SECURITY;
@@ -753,6 +699,12 @@ GRANT USAGE ON SCHEMA "public" TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."get_nearby_pizzerias"("user_lat" double precision, "user_lon" double precision, "radius_km" double precision) TO "anon";
+GRANT ALL ON FUNCTION "public"."get_nearby_pizzerias"("user_lat" double precision, "user_lon" double precision, "radius_km" double precision) TO "authenticated";
+GRANT ALL ON FUNCTION "public"."get_nearby_pizzerias"("user_lat" double precision, "user_lon" double precision, "radius_km" double precision) TO "service_role";
+
+
+
 GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "anon";
 GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "authenticated";
 GRANT ALL ON FUNCTION "public"."handle_new_user"() TO "service_role";
@@ -765,6 +717,9 @@ GRANT ALL ON FUNCTION "public"."handle_updated_at"() TO "service_role";
 
 
 
+GRANT ALL ON FUNCTION "public"."update_pizzeria_timestamp"() TO "anon";
+GRANT ALL ON FUNCTION "public"."update_pizzeria_timestamp"() TO "authenticated";
+GRANT ALL ON FUNCTION "public"."update_pizzeria_timestamp"() TO "service_role";
 
 
 
@@ -780,9 +735,6 @@ GRANT ALL ON FUNCTION "public"."handle_updated_at"() TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."ingredients" TO "anon";
-GRANT ALL ON TABLE "public"."ingredients" TO "authenticated";
-GRANT ALL ON TABLE "public"."ingredients" TO "service_role";
 
 
 
@@ -810,33 +762,15 @@ GRANT ALL ON TABLE "public"."pizzerias" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."process_steps" TO "anon";
-GRANT ALL ON TABLE "public"."process_steps" TO "authenticated";
-GRANT ALL ON TABLE "public"."process_steps" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."recipe_ratings" TO "anon";
-GRANT ALL ON TABLE "public"."recipe_ratings" TO "authenticated";
-GRANT ALL ON TABLE "public"."recipe_ratings" TO "service_role";
-
-
-
-GRANT ALL ON TABLE "public"."recipes" TO "anon";
-GRANT ALL ON TABLE "public"."recipes" TO "authenticated";
-GRANT ALL ON TABLE "public"."recipes" TO "service_role";
-
-
-
 GRANT ALL ON TABLE "public"."saved_pizzerias" TO "anon";
 GRANT ALL ON TABLE "public"."saved_pizzerias" TO "authenticated";
 GRANT ALL ON TABLE "public"."saved_pizzerias" TO "service_role";
 
 
 
-GRANT ALL ON TABLE "public"."saved_recipes" TO "anon";
-GRANT ALL ON TABLE "public"."saved_recipes" TO "authenticated";
-GRANT ALL ON TABLE "public"."saved_recipes" TO "service_role";
+GRANT ALL ON TABLE "public"."user_achievements" TO "anon";
+GRANT ALL ON TABLE "public"."user_achievements" TO "authenticated";
+GRANT ALL ON TABLE "public"."user_achievements" TO "service_role";
 
 
 

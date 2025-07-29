@@ -1,4 +1,4 @@
-// app/pizzeria/[id].tsx
+// app/pizzeria/[id].tsx - Fixed version
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -20,7 +20,7 @@ import { useLocation } from "../../src/contexts/LocationContext";
 import { COLORS, SPACING, BORDER_RADIUS } from "../../src/constants";
 import { checkAndAwardAchievements } from "../../src/services/achievementService";
 import { AchievementModal } from "../../src/components/achievements";
-import { AchievementType } from "../../src/types";
+import { UserAchievement, AchievementType } from "../../src/types";
 import {
   PizzeriaHeader,
   DoughStylesSection,
@@ -29,6 +29,7 @@ import {
   HoursDisplay,
 } from "../../src/components/pizzeria";
 import { DualRatingDisplay, ReviewModal } from "../../src/components/ratings";
+import { PhotoGallery } from "../../src/components/photos";
 import {
   fetchPizzeriaDetails,
   fetchPizzeriaReviews,
@@ -64,7 +65,8 @@ export default function PizzeriaDetailScreen() {
   } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [showAchievementModal, setShowAchievementModal] = useState(false);
-  const [newAchievement, setNewAchievement] = useState<AchievementType | null>(
+  // Fixed: Changed from AchievementType to UserAchievement
+  const [newAchievement, setNewAchievement] = useState<UserAchievement | null>(
     null
   );
 
@@ -346,43 +348,13 @@ export default function PizzeriaDetailScreen() {
         <ScrollView contentContainerStyle={styles.scrollContent}>
           {/* Hero Image or Image Carousel */}
           {pizzeria.photos && pizzeria.photos.length > 0 ? (
-            <View style={styles.carouselContainer}>
-              <ScrollView
-                horizontal
-                pagingEnabled
-                showsHorizontalScrollIndicator={false}
-                style={styles.carousel}
-              >
-                {pizzeria.photos.map((photo, index) => (
-                  <TouchableOpacity
-                    key={`photo-${index}`}
-                    onPress={() => handlePhotoPress(photo)}
-                    style={styles.carouselItem}
-                  >
-                    <Image
-                      source={{ uri: photo }}
-                      style={styles.heroImage}
-                      resizeMode="cover"
-                    />
-                  </TouchableOpacity>
-                ))}
-              </ScrollView>
-
-              {/* Pagination dots */}
-              {pizzeria.photos.length > 1 && (
-                <View style={styles.paginationContainer}>
-                  {pizzeria.photos.map((_, index) => (
-                    <View
-                      key={`dot-${index}`}
-                      style={[
-                        styles.paginationDot,
-                        { backgroundColor: COLORS.white },
-                      ]}
-                    />
-                  ))}
-                </View>
-              )}
-            </View>
+            <PhotoGallery
+              photos={pizzeria.photos}
+              columns={1}
+              maxPhotos={5}
+              onPhotoPress={handlePhotoPress}
+              enableLightbox={true}
+            />
           ) : (
             <View style={styles.placeholderImage}>
               <Ionicons name="pizza-outline" size={64} color={COLORS.primary} />
@@ -391,11 +363,11 @@ export default function PizzeriaDetailScreen() {
           )}
 
           <View style={styles.contentContainer}>
-            {/* Pizzeria Header */}
+            {/* Pizzeria Header - Fixed: Convert verified to boolean */}
             <PizzeriaHeader
               name={pizzeria.name}
               address={pizzeria.address}
-              verified={pizzeria.verified}
+              verified={!!pizzeria.verified} // Convert boolean | null to boolean
               distance={distance}
               phone={pizzeria.phone || null}
               website={pizzeria.website || null}
@@ -521,169 +493,19 @@ export default function PizzeriaDetailScreen() {
           }}
         />
       )}
-    </>
-  );
-}
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.white,
-  },
-  scrollContent: {
-    paddingBottom: SPACING.xxl,
-  },
-  loadingContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: SPACING.md,
-  },
-  loadingText: {
-    marginTop: SPACING.sm,
-    fontSize: 16,
-    color: COLORS.text,
-  },
-  errorContainer: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-    paddingHorizontal: SPACING.md,
-  },
-  errorText: {
-    fontSize: 16,
-    color: COLORS.text,
-    marginTop: SPACING.md,
-    textAlign: "center",
-  },
-  retryButton: {
-    marginTop: SPACING.md,
-    padding: SPACING.sm,
-    backgroundColor: COLORS.primary,
-    borderRadius: BORDER_RADIUS.sm,
-  },
-  retryButtonText: {
-    color: COLORS.white,
-    fontWeight: "bold",
-  },
-  carouselContainer: {
-    width: "100%",
-    height: 250,
-    position: "relative",
-  },
-  carousel: {
-    width: "100%",
-    height: "100%",
-  },
-  carouselItem: {
-    width: "100%",
-    height: "100%",
-  },
-  heroImage: {
-    width: "100%",
-    height: "100%",
-  },
-  paginationContainer: {
-    position: "absolute",
-    bottom: SPACING.sm,
-    flexDirection: "row",
-    justifyContent: "center",
-    width: "100%",
-  },
-  paginationDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    marginHorizontal: 4,
-    backgroundColor: COLORS.white,
-    opacity: 0.8,
-  },
-  placeholderImage: {
-    width: "100%",
-    height: 200,
-    backgroundColor: COLORS.secondary,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  placeholderText: {
-    marginTop: SPACING.sm,
-    color: COLORS.textLight,
-    fontSize: 16,
-  },
-  contentContainer: {
-    padding: SPACING.md,
-  },
-  ratingContainer: {
-    marginVertical: SPACING.md,
-    padding: SPACING.md,
-    backgroundColor: COLORS.white,
-    borderRadius: BORDER_RADIUS.md,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-    elevation: 2,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: "bold",
-    color: COLORS.text,
-    marginBottom: SPACING.sm,
-  },
-  breakdownContainer: {
-    marginTop: SPACING.md,
-  },
-  breakdownRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: SPACING.xs,
-  },
-  breakdownStars: {
-    width: 30,
-    fontSize: 14,
-    color: COLORS.text,
-  },
-  breakdownBarContainer: {
-    flex: 1,
-    height: 8,
-    backgroundColor: COLORS.secondary,
-    borderRadius: 4,
-    marginHorizontal: SPACING.sm,
-    overflow: "hidden",
-  },
-  breakdownBar: {
-    height: "100%",
-    backgroundColor: COLORS.primary,
-  },
-  breakdownCount: {
-    width: 30,
-    fontSize: 14,
-    color: COLORS.textLight,
-    textAlign: "right",
-  },
-  descriptionContainer: {
-    marginVertical: SPACING.md,
-  },
-  description: {
-    fontSize: 16,
-    lineHeight: 24,
-    color: COLORS.text,
-  },
-  photoModalContainer: {
-    flex: 1,
-    backgroundColor: "rgba(0,0,0,0.9)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  closeButton: {
-    position: "absolute",
-    top: 40,
-    right: 20,
-    zIndex: 10,
-    padding: SPACING.sm,
-  },
-  fullScreenPhoto: {
-    width: "100%",
-    height: "80%",
-  },
-});
+      {/* Achievement Modal */}
+      {showAchievementModal && newAchievement && (
+        <AchievementModal
+          visible={showAchievementModal}
+          achievement={newAchievement}
+          onClose={() => {
+            setShowAchievementModal(false);
+            setNewAchievement(null);
+          }}
+          onShare={() => {
+            // TODO: Implement sharing functionality
+            console.log("Sharing achievement:", newAchievement);
+          }}
+        />
+      )}

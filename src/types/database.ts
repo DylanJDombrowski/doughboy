@@ -64,6 +64,7 @@ export type Database = {
           crust_rating: number
           id: string
           overall_rating: number
+          photo_metadata: Json | null
           photos: string[] | null
           pizzeria_id: string
           review: string | null
@@ -74,6 +75,7 @@ export type Database = {
           crust_rating: number
           id?: string
           overall_rating: number
+          photo_metadata?: Json | null
           photos?: string[] | null
           pizzeria_id: string
           review?: string | null
@@ -84,6 +86,7 @@ export type Database = {
           crust_rating?: number
           id?: string
           overall_rating?: number
+          photo_metadata?: Json | null
           photos?: string[] | null
           pizzeria_id?: string
           review?: string | null
