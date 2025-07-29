@@ -1,4 +1,4 @@
-// src/components/ratings/ReviewModal.tsx - Fixed version
+// src/components/ratings/ReviewModal.tsx - Enhanced version with Toast
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -11,6 +11,7 @@ import {
   Platform,
   ActivityIndicator,
   ScrollView,
+  Alert,
   Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,7 +24,6 @@ import { useAuth } from "../../hooks/useAuth";
 import { checkAndAwardAchievements } from "../../services/achievementService";
 import { AchievementModal } from "../achievements";
 import { UserAchievement } from "../../types";
-import { useToast } from "../../contexts/ToastContext";
 
 interface ReviewModalProps {
   visible: boolean;
@@ -38,7 +38,7 @@ interface ReviewModalProps {
   };
 }
 
-export const ReviewModal: React.FC<ReviewModalProps> = ({
+const ReviewModal: React.FC<ReviewModalProps> = ({
   visible,
   onClose,
   recipeId,
@@ -46,7 +46,6 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
   initialRating,
 }) => {
   const { user } = useAuth();
-  const { showSuccess, showError } = useToast();
   const [overallRating, setOverallRating] = useState(
     initialRating?.overallRating || 0
   );
@@ -60,6 +59,8 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
   const [newAchievements, setNewAchievements] = useState<UserAchievement[]>([]);
   const [showAchievementModal, setShowAchievementModal] = useState(false);
   const [currentAchievementIndex, setCurrentAchievementIndex] = useState(0);
+  const [showSuccessToast, setShowSuccessToast] = useState(false);
+  const [successMessage, setSuccessMessage] = useState("");
 
   // Reset form when modal opens or initialRating changes
   useEffect(() => {
@@ -69,6 +70,8 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
       setReview(initialRating?.review || "");
       setPhotos(initialRating?.photos || []);
       setSelectedPhotos([]);
+      setShowSuccessToast(false);
+      setSuccessMessage("");
     }
   }, [visible, initialRating]);
 
@@ -86,10 +89,22 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
     setSelectedPhotos(newPhotos);
   };
 
+  // Custom toast component for success messages
+  const showToast = (
+    message: string,
+    type: "success" | "error" = "success"
+  ) => {
+    setSuccessMessage(message);
+    setShowSuccessToast(true);
+    setTimeout(() => {
+      setShowSuccessToast(false);
+    }, 3000);
+  };
+
   // Handle review submission
   const handleSubmit = async () => {
     if (!user) {
-      showError(
+      Alert.alert(
         "Authentication Error",
         "You need to be logged in to submit a review"
       );
@@ -97,7 +112,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
     }
 
     if (overallRating === 0 || crustRating === 0) {
-      showError(
+      Alert.alert(
         "Rating Required",
         "Please rate both overall experience and crust quality"
       );
@@ -152,16 +167,15 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
         setShowAchievementModal(true);
       } else {
         // No achievements - show success immediately
-        showSuccess(
-          "Review Submitted!",
-          "Your review has been posted successfully"
-        );
-        onReviewSubmitted();
-        onClose();
+        showToast("🎉 Review submitted successfully!");
+        setTimeout(() => {
+          onReviewSubmitted();
+          onClose();
+        }, 1500);
       }
     } catch (error) {
       console.error("Error submitting review:", error);
-      showError(
+      Alert.alert(
         "Submission Failed",
         error instanceof Error ? error.message : "Failed to submit review"
       );
@@ -180,12 +194,11 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
       setNewAchievements([]);
       setCurrentAchievementIndex(0);
 
-      showSuccess(
-        "Review Submitted!",
-        "Your review has been posted and you earned new achievements!"
-      );
-      onReviewSubmitted();
-      onClose();
+      showToast("🏆 Review submitted and achievements unlocked!");
+      setTimeout(() => {
+        onReviewSubmitted();
+        onClose();
+      }, 1500);
     }
   };
 
@@ -202,6 +215,18 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
         keyboardVerticalOffset={Platform.OS === "ios" ? 40 : 0}
       >
         <View style={styles.modalView}>
+          {/* Success Toast */}
+          {showSuccessToast && (
+            <View style={styles.successToast}>
+              <Ionicons
+                name="checkmark-circle"
+                size={24}
+                color={COLORS.white}
+              />
+              <Text style={styles.successToastText}>{successMessage}</Text>
+            </View>
+          )}
+
           {/* Header */}
           <View style={styles.header}>
             <Text style={styles.title}>Write a Review</Text>
@@ -344,6 +369,30 @@ const styles = StyleSheet.create({
     borderTopRightRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
     maxHeight: "90%",
+    position: "relative",
+  },
+  successToast: {
+    position: "absolute",
+    top: SPACING.md,
+    left: SPACING.md,
+    right: SPACING.md,
+    backgroundColor: COLORS.success,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    flexDirection: "row",
+    alignItems: "center",
+    zIndex: 1000,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  successToastText: {
+    color: COLORS.white,
+    fontWeight: "600",
+    marginLeft: SPACING.sm,
+    fontSize: 16,
   },
   header: {
     flexDirection: "row",
@@ -432,3 +481,5 @@ const styles = StyleSheet.create({
     fontWeight: "500",
   },
 });
+
+export default ReviewModal;
