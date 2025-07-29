@@ -1,13 +1,17 @@
-// src/utils/index.ts - Updated for Pizza Review Platform
+// src/utils/index.ts - Updated to include createOrUpdateRating
 export * from "./pizzeriaRating";
 export * from "./savedPizzeria";
 
-// Re-export specific functions that are being imported
+// Import the function from pizzeriaRating and re-export with both names for compatibility
 export {
   createOrUpdatePizzeriaRating,
   getPizzeriaRatingStats,
 } from "./pizzeriaRating";
 
+// Add this compatibility export for ReviewModal
+export { createOrUpdatePizzeriaRating as createOrUpdateRating } from "./pizzeriaRating";
+
+// Utility functions
 export const formatTime = (minutes: number): string => {
   if (minutes < 60) {
     return `${minutes} min`;
@@ -63,19 +67,16 @@ export const generatePizzeriaUrl = (pizzeria: {
   return `/pizzeria/${pizzeria.id}/${slugify(pizzeria.name)}`;
 };
 
-// Email validation
 export const isValidEmail = (email: string): boolean => {
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   return emailRegex.test(email);
 };
 
-// Username validation
 export const isValidUsername = (username: string): boolean => {
   const usernameRegex = /^[a-zA-Z0-9_]{3,20}$/;
   return usernameRegex.test(username);
 };
 
-// Calculate distance between two coordinates
 export const calculateDistance = (
   lat1: number,
   lon1: number,

@@ -1,5 +1,5 @@
 // src/components/upload/PhotoUpload.tsx
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import {
   View,
   Text,
@@ -9,10 +9,10 @@ import {
   ScrollView,
   ActivityIndicator,
   Alert,
-} from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import { Ionicons } from '@expo/vector-icons';
-import { COLORS, SPACING, BORDER_RADIUS } from '../../constants';
+} from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import { Ionicons } from "@expo/vector-icons";
+import { COLORS, SPACING, BORDER_RADIUS } from "../../constants";
 
 interface PhotoUploadProps {
   maxPhotos?: number;
@@ -31,26 +31,25 @@ export const PhotoUpload: React.FC<PhotoUploadProps> = ({
   // Request permission to access the device's photo library
   const requestPermission = async (): Promise<boolean> => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
+    if (status !== "granted") {
       Alert.alert(
-        'Permission Required',
-        'Please grant permission to access your photos.',
-        [{ text: 'OK' }]
+        "Permission Required",
+        "Please grant permission to access your photos.",
+        [{ text: "OK" }]
       );
       return false;
     }
     return true;
   };
 
-  // Pick images from the photo library
   const pickImages = async () => {
     try {
       // Check if user can add more photos
       if (photos.length >= maxPhotos) {
         Alert.alert(
-          'Maximum Photos Reached',
+          "Maximum Photos Reached",
           `You can only upload up to ${maxPhotos} photos.`,
-          [{ text: 'OK' }]
+          [{ text: "OK" }]
         );
         return;
       }
@@ -61,9 +60,9 @@ export const PhotoUpload: React.FC<PhotoUploadProps> = ({
 
       setLoading(true);
 
-      // Open image picker
+      // Open image picker - use string directly
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: "images", // Use string directly instead of enum
         allowsMultipleSelection: true,
         quality: 0.8,
         selectionLimit: maxPhotos - photos.length,
@@ -72,68 +71,67 @@ export const PhotoUpload: React.FC<PhotoUploadProps> = ({
       if (!result.canceled && result.assets.length > 0) {
         // Get selected photo URIs
         const newPhotos = result.assets.map((asset) => asset.uri);
-        
+
         // Update state with new photos
         const updatedPhotos = [...photos, ...newPhotos];
         setPhotos(updatedPhotos);
-        
+
         // Notify parent component
         onPhotosSelected(updatedPhotos);
       }
     } catch (error) {
-      console.error('Error picking images:', error);
-      Alert.alert('Error', 'Failed to pick images. Please try again.');
+      console.error("Error picking images:", error);
+      Alert.alert("Error", "Failed to pick images. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  // Take a photo with the camera
   const takePhoto = async () => {
     try {
       // Check if user can add more photos
       if (photos.length >= maxPhotos) {
         Alert.alert(
-          'Maximum Photos Reached',
+          "Maximum Photos Reached",
           `You can only upload up to ${maxPhotos} photos.`,
-          [{ text: 'OK' }]
+          [{ text: "OK" }]
         );
         return;
       }
 
       // Request camera permission
       const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') {
+      if (status !== "granted") {
         Alert.alert(
-          'Permission Required',
-          'Please grant permission to access your camera.',
-          [{ text: 'OK' }]
+          "Permission Required",
+          "Please grant permission to access your camera.",
+          [{ text: "OK" }]
         );
         return;
       }
 
       setLoading(true);
 
-      // Open camera
+      // Open camera - use string directly
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
+        mediaTypes: "images", // Use string directly instead of enum
         quality: 0.8,
       });
 
       if (!result.canceled && result.assets.length > 0) {
         // Get captured photo URI
         const newPhoto = result.assets[0].uri;
-        
+
         // Update state with new photo
         const updatedPhotos = [...photos, newPhoto];
         setPhotos(updatedPhotos);
-        
+
         // Notify parent component
         onPhotosSelected(updatedPhotos);
       }
     } catch (error) {
-      console.error('Error taking photo:', error);
-      Alert.alert('Error', 'Failed to take photo. Please try again.');
+      console.error("Error taking photo:", error);
+      Alert.alert("Error", "Failed to take photo. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -180,7 +178,10 @@ export const PhotoUpload: React.FC<PhotoUploadProps> = ({
       {/* Actions section */}
       <View style={styles.actions}>
         <TouchableOpacity
-          style={[styles.button, photos.length >= maxPhotos && styles.disabledButton]}
+          style={[
+            styles.button,
+            photos.length >= maxPhotos && styles.disabledButton,
+          ]}
           onPress={pickImages}
           disabled={loading || photos.length >= maxPhotos}
         >
@@ -195,7 +196,10 @@ export const PhotoUpload: React.FC<PhotoUploadProps> = ({
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={[styles.button, photos.length >= maxPhotos && styles.disabledButton]}
+          style={[
+            styles.button,
+            photos.length >= maxPhotos && styles.disabledButton,
+          ]}
           onPress={takePhoto}
           disabled={loading || photos.length >= maxPhotos}
         >
@@ -221,14 +225,14 @@ const styles = StyleSheet.create({
     marginVertical: SPACING.sm,
   },
   header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     marginBottom: SPACING.sm,
   },
   title: {
     fontSize: 16,
-    fontWeight: '600',
+    fontWeight: "600",
     color: COLORS.text,
   },
   subtitle: {
@@ -239,7 +243,7 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.sm,
   },
   photoContainer: {
-    position: 'relative',
+    position: "relative",
     marginRight: SPACING.sm,
   },
   photo: {
@@ -249,38 +253,38 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.background,
   },
   removeButton: {
-    position: 'absolute',
+    position: "absolute",
     top: -8,
     right: -8,
     backgroundColor: COLORS.white,
     borderRadius: 12,
     elevation: 2,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.2,
     shadowRadius: 1,
   },
   actions: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginTop: SPACING.sm,
   },
   button: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     backgroundColor: COLORS.primary,
     paddingVertical: SPACING.sm,
     paddingHorizontal: SPACING.md,
     borderRadius: BORDER_RADIUS.md,
-    minWidth: '48%',
+    minWidth: "48%",
   },
   disabledButton: {
     backgroundColor: COLORS.textMuted,
   },
   buttonText: {
     color: COLORS.white,
-    fontWeight: '600',
+    fontWeight: "600",
     marginLeft: SPACING.xs,
   },
 });

@@ -275,61 +275,88 @@ export const getUserStats = async (
 
     if (achievementError) throw achievementError;
 
-    // Calculate stats
-    const totalReviews = reviews?.length || 0;
-    const uniquePizzerias = new Set(
-      reviews?.map((r) => (r as any).pizzerias.id)
-    );
-    const totalPizzeriasVisited = uniquePizzerias.size;
+    // Initialize with safe defaults
+    const safeReviews = reviews || [];
+    const safeAchievements = achievements || [];
 
-    const reviewsWithPhotos =
-      reviews?.filter((r) => r.photos && r.photos.length > 0).length || 0;
-
-    // Get unique pizza styles
+    // Calculate stats safely
+    const totalReviews = safeReviews.length;
+    const uniquePizzerias = new Set();
     const allStyles = new Set<string>();
-    reviews?.forEach((review) => {
+    let reviewsWithPhotos = 0;
+    let totalRating = 0;
+
+    // Process reviews safely
+    safeReviews.forEach((review) => {
+      // Add to unique pizzerias
       const pizzeria = (review as any).pizzerias;
-      if (pizzeria?.cuisine_styles) {
-        pizzeria.cuisine_styles.forEach((style: string) =>
-          allStyles.add(style)
-        );
+      if (pizzeria?.id) {
+        uniquePizzerias.add(pizzeria.id);
       }
-    });
 
-    // Calculate consecutive review days
-    const consecutiveDays = calculateConsecutiveReviewDays(reviews || []);
+      // Count photos
+      if (
+        review.photos &&
+        Array.isArray(review.photos) &&
+        review.photos.length > 0
+      ) {
+        reviewsWithPhotos++;
+      }
 
-    // Calculate average rating
-    const totalRating =
-      reviews?.reduce((sum, r) => sum + r.overall_rating, 0) || 0;
-    const averageRating = totalReviews > 0 ? totalRating / totalReviews : 0;
+      // Add to total rating
+      if (typeof review.overall_rating === "number") {
+        totalRating += review.overall_rating;
+      }
 
-    // Find most common style
-    const styleCount: Record<string, number> = {};
-    reviews?.forEach((review) => {
-      const pizzeria = (review as any).pizzerias;
-      if (pizzeria?.cuisine_styles) {
+      // Add cuisine styles
+      if (pizzeria?.cuisine_styles && Array.isArray(pizzeria.cuisine_styles)) {
         pizzeria.cuisine_styles.forEach((style: string) => {
-          styleCount[style] = (styleCount[style] || 0) + 1;
+          if (style) allStyles.add(style);
         });
       }
     });
 
-    const favoriteStyle = Object.entries(styleCount).reduce((a, b) =>
-      styleCount[a[0]] > styleCount[b[0]] ? a : b
-    )?.[0];
+    const totalPizzeriasVisited = uniquePizzerias.size;
+
+    // Calculate consecutive review days
+    const consecutiveDays = calculateConsecutiveReviewDays(safeReviews);
+
+    // Calculate average rating safely
+    const averageRating = totalReviews > 0 ? totalRating / totalReviews : 0;
+
+    // Find most common style safely
+    const styleCount: Record<string, number> = {};
+    safeReviews.forEach((review) => {
+      const pizzeria = (review as any).pizzerias;
+      if (pizzeria?.cuisine_styles && Array.isArray(pizzeria.cuisine_styles)) {
+        pizzeria.cuisine_styles.forEach((style: string) => {
+          if (style) {
+            styleCount[style] = (styleCount[style] || 0) + 1;
+          }
+        });
+      }
+    });
+
+    // Find favorite style safely
+    let favoriteStyle: string | undefined;
+    const styleEntries = Object.entries(styleCount);
+    if (styleEntries.length > 0) {
+      favoriteStyle = styleEntries.reduce((prev, current) =>
+        styleCount[prev[0]] > styleCount[current[0]] ? prev : current
+      )[0];
+    }
 
     const stats: UserStats = {
       total_reviews: totalReviews,
       total_pizzerias_visited: totalPizzeriasVisited,
-      total_achievements: achievements?.length || 0,
+      total_achievements: safeAchievements.length,
       reviews_with_photos: reviewsWithPhotos,
       unique_pizza_styles: Array.from(allStyles),
       consecutive_review_days: consecutiveDays,
       average_rating_given: Math.round(averageRating * 10) / 10,
       favorite_pizza_style: favoriteStyle,
-      recent_reviews: (reviews?.slice(0, 5) || []) as any,
-      achievements: (achievements || []) as UserAchievement[],
+      recent_reviews: safeReviews.slice(0, 5) as any,
+      achievements: safeAchievements as UserAchievement[],
     };
 
     return {

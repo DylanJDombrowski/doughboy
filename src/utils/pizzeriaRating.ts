@@ -3,7 +3,8 @@ import { supabase } from "../services/supabase";
 import { PizzeriaRating } from "../types";
 
 export interface PizzeriaRatingInput {
-  pizzeria_id: string;
+  recipe_id?: string; // For compatibility with ReviewModal
+  pizzeria_id?: string; // The actual field we use
   user_id: string;
   overall_rating: number;
   crust_rating: number;
@@ -26,6 +27,16 @@ export const createOrUpdatePizzeriaRating = async (
   ratingInput: PizzeriaRatingInput
 ): Promise<{ success: boolean; error?: string; rating?: PizzeriaRating }> => {
   try {
+    // Handle both recipe_id (for compatibility) and pizzeria_id
+    const pizzeria_id = ratingInput.pizzeria_id || ratingInput.recipe_id;
+
+    if (!pizzeria_id) {
+      return {
+        success: false,
+        error: "Pizzeria ID is required",
+      };
+    }
+
     // Validate inputs
     if (ratingInput.overall_rating < 1 || ratingInput.overall_rating > 5) {
       return {
@@ -42,7 +53,7 @@ export const createOrUpdatePizzeriaRating = async (
     const { data: existingRatings, error: fetchError } = await supabase
       .from("pizzeria_ratings")
       .select("*")
-      .eq("pizzeria_id", ratingInput.pizzeria_id)
+      .eq("pizzeria_id", pizzeria_id)
       .eq("user_id", ratingInput.user_id)
       .single();
 
@@ -77,7 +88,7 @@ export const createOrUpdatePizzeriaRating = async (
       const { data, error } = await supabase
         .from("pizzeria_ratings")
         .insert({
-          pizzeria_id: ratingInput.pizzeria_id,
+          pizzeria_id: pizzeria_id,
           user_id: ratingInput.user_id,
           overall_rating: ratingInput.overall_rating,
           crust_rating: ratingInput.crust_rating,

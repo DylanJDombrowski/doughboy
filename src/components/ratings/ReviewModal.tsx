@@ -104,7 +104,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
       setIsSubmitting(true);
 
       // Upload new photos if any
-      let photoUrls = [...photos]; // Start with existing photos
+      let photoUrls = [...photos];
 
       if (selectedPhotos.length > 0) {
         const uploadResult = await uploadPhotos(
@@ -142,11 +142,12 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
         achievementResult.success &&
         achievementResult.newAchievements.length > 0
       ) {
+        // REMOVE THIS SUCCESS ALERT - let achievement modal handle it
         setNewAchievements(achievementResult.newAchievements);
         setCurrentAchievementIndex(0);
         setShowAchievementModal(true);
       } else {
-        // No new achievements - show success and close
+        // Only show success message if NO achievements
         Alert.alert("Success", "Your review has been submitted!");
         onReviewSubmitted();
         onClose();

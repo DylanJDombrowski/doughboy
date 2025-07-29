@@ -1,27 +1,30 @@
-// src/services/storage.ts
-import { supabase } from './supabase';
-import * as FileSystem from 'expo-file-system';
-import * as ImageManipulator from 'expo-image-manipulator';
-import { Alert } from 'react-native';
-import { nanoid } from 'nanoid';
+// Update src/services/storage.ts to fix the crypto error:
+
+import { supabase } from "./supabase";
+import * as FileSystem from "expo-file-system";
+import * as ImageManipulator from "expo-image-manipulator";
+import * as Crypto from "expo-crypto"; // Use expo-crypto instead of nanoid
+import { Alert } from "react-native";
 
 // Storage bucket names
 export const STORAGE_BUCKETS = {
-  PIZZERIA_PHOTOS: 'pizzeria-photos',
-  RECIPE_PHOTOS: 'recipe-photos',
-  PROFILE_PHOTOS: 'profile-photos',
+  PIZZERIA_PHOTOS: "pizzeria-photos",
+  RECIPE_PHOTOS: "recipe-photos",
+  PROFILE_PHOTOS: "profile-photos",
 };
 
 // Maximum file size in bytes (1MB)
 const MAX_FILE_SIZE = 1024 * 1024;
 
-// File types that are allowed
-const ALLOWED_MIME_TYPES = [
-  'image/jpeg',
-  'image/png',
-  'image/heic',
-  'image/heif',
-];
+// Generate unique filename using expo-crypto
+const generateUniqueFilename = async (): Promise<string> => {
+  const timestamp = Date.now();
+  const randomBytes = await Crypto.getRandomBytesAsync(8);
+  const randomString = Array.from(randomBytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("");
+  return `${timestamp}_${randomString}`;
+};
 
 /**
  * Interface for upload response
@@ -42,12 +45,12 @@ export const compressImage = async (uri: string): Promise<string> => {
     // Check if the file is an image
     const fileInfo = await FileSystem.getInfoAsync(uri);
     if (!fileInfo.exists) {
-      throw new Error('File does not exist');
+      throw new Error("File does not exist");
     }
 
     // Get file size and type
     const fileSize = fileInfo.size || 0;
-    
+
     // If file is already smaller than max size, return it as is
     if (fileSize <= MAX_FILE_SIZE) {
       return uri;
@@ -72,7 +75,7 @@ export const compressImage = async (uri: string): Promise<string> => {
 
     return manipResult.uri;
   } catch (error) {
-    console.error('Error compressing image:', error);
+    console.error("Error compressing image:", error);
     return uri; // Return original if compression fails
   }
 };
@@ -87,7 +90,7 @@ export const compressImage = async (uri: string): Promise<string> => {
 export const uploadPhotos = async (
   photos: string[],
   bucket: string,
-  folder: string = ''
+  folder: string = ""
 ): Promise<UploadResponse> => {
   try {
     if (!photos || photos.length === 0) {
@@ -95,45 +98,50 @@ export const uploadPhotos = async (
     }
 
     const uploadedUrls: string[] = [];
-    
+
     for (const photoUri of photos) {
       // Compress the image before uploading
       const compressedUri = await compressImage(photoUri);
-      
-      // Generate a unique file name
-      const fileName = `${folder ? folder + '/' : ''}${nanoid()}.jpg`;
-      
+
+      // Generate a unique file name using expo-crypto
+      const uniqueId = await generateUniqueFilename();
+      const fileName = `${folder ? folder + "/" : ""}${uniqueId}.jpg`;
+
       // Convert file to base64 for upload
       const fileBase64 = await FileSystem.readAsStringAsync(compressedUri, {
         encoding: FileSystem.EncodingType.Base64,
       });
-      
+
+      // Convert base64 to blob for upload
+      const blob = Uint8Array.from(atob(fileBase64), (c) => c.charCodeAt(0));
+
       // Upload file to Supabase
       const { data, error } = await supabase.storage
         .from(bucket)
-        .upload(fileName, Buffer.from(fileBase64, 'base64'), {
-          contentType: 'image/jpeg',
+        .upload(fileName, blob, {
+          contentType: "image/jpeg",
           upsert: false,
         });
-      
+
       if (error) {
         throw error;
       }
-      
+
       // Get public URL for the uploaded file
-      const { data: { publicUrl } } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(fileName);
-      
+      const {
+        data: { publicUrl },
+      } = supabase.storage.from(bucket).getPublicUrl(fileName);
+
       uploadedUrls.push(publicUrl);
     }
-    
+
     return { success: true, urls: uploadedUrls };
   } catch (error) {
-    console.error('Error uploading photos:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error during upload' 
+    console.error("Error uploading photos:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error ? error.message : "Unknown error during upload",
     };
   }
 };
@@ -145,10 +153,10 @@ export const uploadPhotos = async (
  * @returns Public URL of the photo
  */
 export const getPhotoUrl = (path: string, bucket: string): string => {
-  const { data: { publicUrl } } = supabase.storage
-    .from(bucket)
-    .getPublicUrl(path);
-  
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from(bucket).getPublicUrl(path);
+
   return publicUrl;
 };
 
@@ -166,27 +174,28 @@ export const deletePhotos = async (
     if (!paths || paths.length === 0) {
       return { success: true };
     }
-    
+
     // Extract only the filenames from full URLs
-    const fileNames = paths.map(path => {
+    const fileNames = paths.map((path) => {
       const url = new URL(path);
-      return url.pathname.split('/').pop() || path;
+      return url.pathname.split("/").pop() || path;
     });
-    
-    const { error } = await supabase.storage
-      .from(bucket)
-      .remove(fileNames);
-    
+
+    const { error } = await supabase.storage.from(bucket).remove(fileNames);
+
     if (error) {
       throw error;
     }
-    
+
     return { success: true };
   } catch (error) {
-    console.error('Error deleting photos:', error);
-    return { 
-      success: false, 
-      error: error instanceof Error ? error.message : 'Unknown error during deletion' 
+    console.error("Error deleting photos:", error);
+    return {
+      success: false,
+      error:
+        error instanceof Error
+          ? error.message
+          : "Unknown error during deletion",
     };
   }
 };

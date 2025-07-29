@@ -1,16 +1,18 @@
-// app.config.js
+// app.config.js - Fixed to match your app.json structure
 export default {
   expo: {
     name: "Doughboy",
     slug: "doughboy",
     version: "1.0.0",
     orientation: "portrait",
-    icon: "./assets/icon.png",
-    userInterfaceStyle: "light",
+    icon: "./assets/images/icon.png", // Match app.json path
+    scheme: "doughboy", // Add scheme to fix Linking warning
+    userInterfaceStyle: "automatic", // Match app.json
+    newArchEnabled: true, // Match app.json
     splash: {
-      image: "./assets/splash.png",
+      image: "./assets/images/splash-icon.png", // Match app.json path
       resizeMode: "contain",
-      backgroundColor: "#D4A574",
+      backgroundColor: "#ffffff", // Match app.json
     },
     assetBundlePatterns: ["**/*"],
     ios: {
@@ -29,8 +31,8 @@ export default {
     },
     android: {
       adaptiveIcon: {
-        foregroundImage: "./assets/adaptive-icon.png",
-        backgroundColor: "#D4A574",
+        foregroundImage: "./assets/images/adaptive-icon.png", // Match app.json path
+        backgroundColor: "#ffffff", // Match app.json
       },
       package: "com.yourname.doughboy",
       permissions: [
@@ -40,15 +42,19 @@ export default {
         "READ_EXTERNAL_STORAGE",
         "WRITE_EXTERNAL_STORAGE",
       ],
+      edgeToEdgeEnabled: true, // Match app.json
     },
     web: {
-      favicon: "./assets/favicon.png",
+      bundler: "metro", // Match app.json
+      output: "static", // Match app.json
+      favicon: "./assets/images/favicon.png", // Match app.json path
     },
     plugins: [
+      "expo-router", // Match app.json
       [
         "expo-notifications",
         {
-          icon: "./assets/notification-icon.png",
+          icon: "./assets/images/icon.png", // Use existing icon path
           color: "#D4A574",
         },
       ],
@@ -63,6 +69,9 @@ export default {
       ],
       "expo-apple-authentication",
     ],
+    experiments: {
+      typedRoutes: true, // Match app.json
+    },
     extra: {
       eas: {
         projectId: "your-eas-project-id",
