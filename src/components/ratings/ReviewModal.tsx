@@ -268,7 +268,7 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
               <Text style={styles.sectionTitle}>Add Photos (Optional)</Text>
               <PhotoUpload
                 maxPhotos={5}
-                onPhotosSelected={handlePhotosSelected}
+                onPhotosChange={handlePhotosSelected}
                 initialPhotos={selectedPhotos}
               />
             </View>
