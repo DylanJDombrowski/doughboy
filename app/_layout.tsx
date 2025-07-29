@@ -1,4 +1,4 @@
-// app/_layout.tsx - Updated Root Layout
+// app/_layout.tsx - Updated with ToastProvider
 import React, { useEffect, useState } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -10,6 +10,7 @@ import * as SplashScreen from "expo-splash-screen";
 
 import { AuthProvider } from "../src/contexts/AuthContext";
 import { LocationProvider } from "../src/contexts/LocationContext";
+import { ToastProvider } from "../src/contexts/ToastContext";
 
 // Configure notifications
 Notifications.setNotificationHandler({
@@ -83,15 +84,17 @@ export default function RootLayout() {
   return (
     <AuthProvider>
       <LocationProvider>
-        <Stack screenOptions={{ headerShown: false }}>
-          <Stack.Screen name="(tabs)" />
-          <Stack.Screen name="auth" />
-          <Stack.Screen
-            name="pizzeria/[id]"
-            options={{ presentation: "modal" }}
-          />
-        </Stack>
-        <StatusBar style="auto" />
+        <ToastProvider>
+          <Stack screenOptions={{ headerShown: false }}>
+            <Stack.Screen name="(tabs)" />
+            <Stack.Screen name="auth" />
+            <Stack.Screen
+              name="pizzeria/[id]"
+              options={{ presentation: "modal" }}
+            />
+          </Stack>
+          <StatusBar style="auto" />
+        </ToastProvider>
       </LocationProvider>
     </AuthProvider>
   );

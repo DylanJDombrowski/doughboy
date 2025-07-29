@@ -1,4 +1,4 @@
-// src/components/ratings/ReviewModal.tsx
+// src/components/ratings/ReviewModal.tsx - Fixed version
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -11,7 +11,6 @@ import {
   Platform,
   ActivityIndicator,
   ScrollView,
-  Alert,
   Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
@@ -24,6 +23,7 @@ import { useAuth } from "../../hooks/useAuth";
 import { checkAndAwardAchievements } from "../../services/achievementService";
 import { AchievementModal } from "../achievements";
 import { UserAchievement } from "../../types";
+import { useToast } from "../../contexts/ToastContext";
 
 interface ReviewModalProps {
   visible: boolean;
@@ -46,6 +46,7 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
   initialRating,
 }) => {
   const { user } = useAuth();
+  const { showSuccess, showError } = useToast();
   const [overallRating, setOverallRating] = useState(
     initialRating?.overallRating || 0
   );
@@ -88,13 +89,16 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
   // Handle review submission
   const handleSubmit = async () => {
     if (!user) {
-      Alert.alert("Error", "You need to be logged in to submit a review");
+      showError(
+        "Authentication Error",
+        "You need to be logged in to submit a review"
+      );
       return;
     }
 
     if (overallRating === 0 || crustRating === 0) {
-      Alert.alert(
-        "Error",
+      showError(
+        "Rating Required",
         "Please rate both overall experience and crust quality"
       );
       return;
@@ -142,20 +146,23 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
         achievementResult.success &&
         achievementResult.newAchievements.length > 0
       ) {
-        // REMOVE THIS SUCCESS ALERT - let achievement modal handle it
+        // Show achievements first, then success message
         setNewAchievements(achievementResult.newAchievements);
         setCurrentAchievementIndex(0);
         setShowAchievementModal(true);
       } else {
-        // Only show success message if NO achievements
-        Alert.alert("Success", "Your review has been submitted!");
+        // No achievements - show success immediately
+        showSuccess(
+          "Review Submitted!",
+          "Your review has been posted successfully"
+        );
         onReviewSubmitted();
         onClose();
       }
     } catch (error) {
       console.error("Error submitting review:", error);
-      Alert.alert(
-        "Error",
+      showError(
+        "Submission Failed",
         error instanceof Error ? error.message : "Failed to submit review"
       );
     } finally {
@@ -173,7 +180,10 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
       setNewAchievements([]);
       setCurrentAchievementIndex(0);
 
-      Alert.alert("Success", "Your review has been submitted!");
+      showSuccess(
+        "Review Submitted!",
+        "Your review has been posted and you earned new achievements!"
+      );
       onReviewSubmitted();
       onClose();
     }
@@ -292,7 +302,10 @@ export const ReviewModal: React.FC<ReviewModalProps> = ({
             disabled={isSubmitting || overallRating === 0 || crustRating === 0}
           >
             {isSubmitting ? (
-              <ActivityIndicator size="small" color={COLORS.white} />
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="small" color={COLORS.white} />
+                <Text style={styles.loadingText}>Submitting...</Text>
+              </View>
             ) : (
               <Text style={styles.submitButtonText}>Submit Review</Text>
             )}
@@ -409,6 +422,13 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     fontSize: 16,
   },
+  loadingContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  loadingText: {
+    color: COLORS.white,
+    marginLeft: SPACING.sm,
+    fontWeight: "500",
+  },
 });
-
-export default ReviewModal;

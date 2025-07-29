@@ -1,4 +1,4 @@
-// app/pizzeria/[id].tsx - Fixed version
+// app/pizzeria/[id].tsx - Fixed version with missing styles
 import React, { useEffect, useState } from "react";
 import {
   View,
@@ -29,7 +29,7 @@ import {
   HoursDisplay,
 } from "../../src/components/pizzeria";
 import { DualRatingDisplay, ReviewModal } from "../../src/components/ratings";
-import { PhotoGallery } from "../../src/components/photos";
+import { PhotoGallery, PhotoLightbox } from "../../src/components/photos";
 import {
   fetchPizzeriaDetails,
   fetchPizzeriaReviews,
@@ -51,7 +51,9 @@ export default function PizzeriaDetailScreen() {
   const [reviews, setReviews] = useState<PizzeriaRating[]>([]);
   const [isSaved, setIsSaved] = useState(false);
   const [distance, setDistance] = useState<number | null>(null);
-  const [fullScreenPhoto, setFullScreenPhoto] = useState<string | null>(null);
+  const [showLightbox, setShowLightbox] = useState(false);
+  const [lightboxPhotos, setLightboxPhotos] = useState<string[]>([]);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
   const [showReviewModal, setShowReviewModal] = useState(false);
   const [ratingStats, setRatingStats] = useState<{
     total_ratings: number;
@@ -65,7 +67,6 @@ export default function PizzeriaDetailScreen() {
   } | null>(null);
   const [refreshing, setRefreshing] = useState(false);
   const [showAchievementModal, setShowAchievementModal] = useState(false);
-  // Fixed: Changed from AchievementType to UserAchievement
   const [newAchievement, setNewAchievement] = useState<UserAchievement | null>(
     null
   );
@@ -262,8 +263,28 @@ export default function PizzeriaDetailScreen() {
     router.push(`/pizzeria/${id}/reviews`);
   };
 
-  const handlePhotoPress = (photoUrl: string) => {
-    setFullScreenPhoto(photoUrl);
+  const handlePhotoPress = (photoUrl: string, index: number) => {
+    // Get all photos from pizzeria and reviews
+    const allPhotos: string[] = [];
+
+    // Add pizzeria photos
+    if (pizzeria?.photos) {
+      allPhotos.push(...pizzeria.photos);
+    }
+
+    // Add review photos
+    reviews.forEach((review) => {
+      if (review.photos) {
+        allPhotos.push(...review.photos);
+      }
+    });
+
+    // Find the index of the pressed photo in the combined array
+    const photoIndex = allPhotos.findIndex((photo) => photo === photoUrl);
+
+    setLightboxPhotos(allPhotos);
+    setLightboxIndex(photoIndex >= 0 ? photoIndex : 0);
+    setShowLightbox(true);
   };
 
   // Loading state
@@ -363,11 +384,11 @@ export default function PizzeriaDetailScreen() {
           )}
 
           <View style={styles.contentContainer}>
-            {/* Pizzeria Header - Fixed: Convert verified to boolean */}
+            {/* Pizzeria Header */}
             <PizzeriaHeader
               name={pizzeria.name}
               address={pizzeria.address}
-              verified={!!pizzeria.verified} // Convert boolean | null to boolean
+              verified={!!pizzeria.verified}
               distance={distance}
               phone={pizzeria.phone || null}
               website={pizzeria.website || null}
@@ -449,36 +470,20 @@ export default function PizzeriaDetailScreen() {
             <PizzeriaReviewsList
               reviews={reviews}
               onLoadMore={handleLoadMoreReviews}
-              onPhotoPress={handlePhotoPress}
+              onPhotoPress={(photoUrl: string) => handlePhotoPress(photoUrl, 0)}
             />
           </View>
         </ScrollView>
       </SafeAreaView>
 
-      {/* Full Screen Photo Modal */}
-      <Modal
-        visible={fullScreenPhoto !== null}
-        transparent={true}
-        animationType="fade"
-        onRequestClose={() => setFullScreenPhoto(null)}
-      >
-        <SafeAreaView style={styles.photoModalContainer}>
-          <TouchableOpacity
-            style={styles.closeButton}
-            onPress={() => setFullScreenPhoto(null)}
-          >
-            <Ionicons name="close" size={24} color={COLORS.white} />
-          </TouchableOpacity>
-
-          {fullScreenPhoto && (
-            <Image
-              source={{ uri: fullScreenPhoto }}
-              style={styles.fullScreenPhoto}
-              resizeMode="contain"
-            />
-          )}
-        </SafeAreaView>
-      </Modal>
+      {/* Photo Lightbox */}
+      <PhotoLightbox
+        visible={showLightbox}
+        photos={lightboxPhotos}
+        initialIndex={lightboxIndex}
+        onClose={() => setShowLightbox(false)}
+        onPhotoChange={(index) => setLightboxIndex(index)}
+      />
 
       {/* Review Modal */}
       {showReviewModal && (
@@ -509,3 +514,134 @@ export default function PizzeriaDetailScreen() {
           }}
         />
       )}
+    </>
+  );
+}
+
+// Missing styles object - this was causing the TypeScript errors
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  scrollContent: {
+    paddingBottom: SPACING.xl,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: COLORS.background,
+  },
+  loadingText: {
+    marginTop: SPACING.md,
+    fontSize: 16,
+    color: COLORS.textLight,
+  },
+  errorContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: COLORS.background,
+    paddingHorizontal: SPACING.lg,
+  },
+  errorText: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: COLORS.error,
+    marginTop: SPACING.md,
+    marginBottom: SPACING.lg,
+    textAlign: "center",
+  },
+  retryButton: {
+    backgroundColor: COLORS.primary,
+    paddingHorizontal: SPACING.lg,
+    paddingVertical: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+  },
+  retryButtonText: {
+    color: COLORS.white,
+    fontWeight: "600",
+    fontSize: 16,
+  },
+  placeholderImage: {
+    height: 200,
+    backgroundColor: COLORS.secondary,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  placeholderText: {
+    marginTop: SPACING.sm,
+    color: COLORS.textLight,
+    fontSize: 16,
+  },
+  contentContainer: {
+    padding: SPACING.md,
+  },
+  ratingContainer: {
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: COLORS.text,
+    marginBottom: SPACING.md,
+  },
+  breakdownContainer: {
+    marginTop: SPACING.md,
+  },
+  breakdownRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: SPACING.sm,
+  },
+  breakdownStars: {
+    width: 50,
+    fontSize: 14,
+    fontWeight: "500",
+    color: COLORS.text,
+  },
+  breakdownBarContainer: {
+    flex: 1,
+    height: 8,
+    backgroundColor: COLORS.secondary,
+    borderRadius: BORDER_RADIUS.sm,
+    marginHorizontal: SPACING.sm,
+    overflow: "hidden",
+  },
+  breakdownBar: {
+    height: "100%",
+    backgroundColor: COLORS.primary,
+    borderRadius: BORDER_RADIUS.sm,
+  },
+  breakdownCount: {
+    width: 30,
+    fontSize: 14,
+    color: COLORS.textLight,
+    textAlign: "right",
+  },
+  descriptionContainer: {
+    backgroundColor: COLORS.white,
+    borderRadius: BORDER_RADIUS.md,
+    padding: SPACING.md,
+    marginBottom: SPACING.md,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  description: {
+    fontSize: 16,
+    color: COLORS.text,
+    lineHeight: 22,
+  },
+});

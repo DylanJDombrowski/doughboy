@@ -63,7 +63,7 @@ const PhotoUpload: React.FC<PhotoUploadProps> = ({
 
       // Open image picker - use string directly
       const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: "images", // Use string directly instead of enum
+        mediaTypes: "images" as any, // Use string directly instead of enum
         allowsMultipleSelection: true,
         quality: 0.8,
         selectionLimit: maxPhotos - photos.length,
@@ -115,7 +115,7 @@ const PhotoUpload: React.FC<PhotoUploadProps> = ({
 
       // Open camera - use string directly
       const result = await ImagePicker.launchCameraAsync({
-        mediaTypes: "images", // Use string directly instead of enum
+        mediaTypes: "images" as any, // Use string directly instead of enum
         quality: 0.8,
       });
 
@@ -171,10 +171,14 @@ const PhotoUpload: React.FC<PhotoUploadProps> = ({
               >
                 <Ionicons name="close-circle" size={24} color={COLORS.error} />
               </TouchableOpacity>
-              
+
               {/* Success indicator for uploaded photos */}
               <View style={styles.successIndicator}>
-                <Ionicons name="checkmark-circle" size={20} color={COLORS.success} />
+                <Ionicons
+                  name="checkmark-circle"
+                  size={20}
+                  color={COLORS.success}
+                />
               </View>
             </View>
           ))}
@@ -304,3 +308,22 @@ const styles = StyleSheet.create({
   disabledButton: {
     backgroundColor: COLORS.textMuted,
   },
+  buttonText: {
+    color: COLORS.white,
+    fontWeight: "500",
+    marginLeft: SPACING.xs,
+  },
+  uploadStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    marginTop: SPACING.md,
+  },
+  uploadStatusText: {
+    marginLeft: SPACING.xs,
+    color: COLORS.primary,
+    fontSize: 14,
+  },
+});
+
+export default PhotoUpload;
