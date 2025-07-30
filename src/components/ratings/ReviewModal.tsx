@@ -1,4 +1,4 @@
-// src/components/ratings/ReviewModal.tsx - Enhanced version with Toast
+// src/components/ratings/ReviewModal.tsx - Fixed with proper PhotoUpload integration
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -18,7 +18,11 @@ import { Ionicons } from "@expo/vector-icons";
 import { COLORS, SPACING, BORDER_RADIUS } from "../../constants";
 import { DualRatingInput } from "./DualRatingInput";
 import { PhotoUpload } from "../upload";
-import { uploadPhotos, STORAGE_BUCKETS } from "../../services/storage";
+import {
+  uploadPhotos,
+  STORAGE_BUCKETS,
+  PhotoMetadata,
+} from "../../services/storage";
 import { createOrUpdateRating } from "../../utils";
 import { useAuth } from "../../hooks/useAuth";
 import { checkAndAwardAchievements } from "../../services/achievementService";
@@ -84,7 +88,7 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
     setCrustRating(newCrustRating);
   };
 
-  // Handle photo selection
+  // Handle photo selection from PhotoUpload
   const handlePhotosSelected = (newPhotos: string[]) => {
     setSelectedPhotos(newPhotos);
   };
@@ -126,10 +130,20 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
       let photoUrls = [...photos];
 
       if (selectedPhotos.length > 0) {
+        // Create metadata for photos
+        const photoMetadata: Partial<PhotoMetadata> = {
+          reviewId: recipeId,
+          reviewerName: user.email?.split("@")[0] || "Anonymous",
+          overallRating,
+          crustRating,
+          reviewText: review.trim(),
+        };
+
         const uploadResult = await uploadPhotos(
           selectedPhotos,
           STORAGE_BUCKETS.PIZZERIA_PHOTOS,
-          recipeId
+          recipeId,
+          photoMetadata
         );
 
         if (!uploadResult.success) {
@@ -270,6 +284,7 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
                 maxPhotos={5}
                 onPhotosChange={handlePhotosSelected}
                 initialPhotos={selectedPhotos}
+                disabled={isSubmitting}
               />
             </View>
 
@@ -294,6 +309,7 @@ const ReviewModal: React.FC<ReviewModalProps> = ({
                           updatedPhotos.splice(index, 1);
                           setPhotos(updatedPhotos);
                         }}
+                        disabled={isSubmitting}
                       >
                         <View style={styles.existingPhotoContainer}>
                           <Image

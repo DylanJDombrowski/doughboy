@@ -1,4 +1,4 @@
-// src/components/photos/PhotoGallery.tsx
+// src/components/photos/PhotoGallery.tsx - Enhanced PhotoGallery Component
 import React, { useState } from "react";
 import {
   View,
@@ -31,6 +31,8 @@ interface PhotoGalleryProps {
   enableLightbox?: boolean;
   maxPhotos?: number;
   emptyStateText?: string;
+  style?: any;
+  height?: number;
   filterOptions?: {
     sortBy?: "newest" | "oldest" | "rating";
     filterBy?: "all" | "rated" | "recent";
@@ -48,6 +50,8 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({
   enableLightbox = true,
   maxPhotos,
   emptyStateText = "No photos available",
+  style,
+  height,
   filterOptions,
 }) => {
   const [loading, setLoading] = useState(false);
@@ -72,11 +76,14 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({
     : normalizedPhotos;
 
   // Calculate photo dimensions
-  const photoWidth = (screenWidth - spacing * (columns + 1)) / columns;
-  const photoHeight = photoWidth;
+  const availableWidth = screenWidth - spacing * (columns + 1);
+  const photoWidth = availableWidth / columns;
+  const photoHeight = height
+    ? height / Math.ceil(displayPhotos.length / columns)
+    : photoWidth;
 
   const handlePhotoPress = (photo: Photo, index: number) => {
-    if (onPhotoPress) {
+    if (onPhotoPress && enableLightbox) {
       onPhotoPress(photo.url, index);
     }
   };
@@ -101,15 +108,29 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({
           },
         ]}
         onPress={() => handlePhotoPress(photo, index)}
-        disabled={hasError}
+        disabled={hasError || !enableLightbox}
+        activeOpacity={0.8}
       >
         {!hasError ? (
-          <Image
-            source={{ uri: photo.url }}
-            style={styles.photo}
-            onError={() => handleImageError(photo.id)}
-            resizeMode="cover"
-          />
+          <>
+            <Image
+              source={{ uri: photo.url }}
+              style={styles.photo}
+              onError={() => handleImageError(photo.id)}
+              resizeMode="cover"
+            />
+
+            {/* Photo overlay for better UX */}
+            {enableLightbox && (
+              <View style={styles.photoOverlay}>
+                <Ionicons
+                  name="expand-outline"
+                  size={20}
+                  color={COLORS.white}
+                />
+              </View>
+            )}
+          </>
         ) : (
           <View style={[styles.photo, styles.errorPhoto]}>
             <Ionicons name="image-outline" size={32} color={COLORS.textMuted} />
@@ -130,7 +151,7 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
+      <View style={[styles.loadingContainer, style]}>
         <ActivityIndicator size="large" color={COLORS.primary} />
         <Text style={styles.loadingText}>Loading photos...</Text>
       </View>
@@ -139,26 +160,77 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({
 
   if (displayPhotos.length === 0) {
     return (
-      <View style={styles.emptyContainer}>
+      <View style={[styles.emptyContainer, style]}>
         <Ionicons name="images-outline" size={64} color={COLORS.textMuted} />
         <Text style={styles.emptyText}>{emptyStateText}</Text>
+        <Text style={styles.emptySubtext}>
+          Add photos to reviews to share your pizza experiences!
+        </Text>
       </View>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <ScrollView
-        showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContainer}
-      >
-        <View style={[styles.grid, { paddingHorizontal: spacing }]}>
-          {displayPhotos.map((photo, index) => renderPhoto(photo, index))}
-        </View>
-      </ScrollView>
+    <View style={[styles.container, style]}>
+      {columns === 1 ? (
+        // Single column layout (hero image style)
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          pagingEnabled
+          contentContainerStyle={styles.heroContainer}
+        >
+          {displayPhotos.map((photo, index) => (
+            <TouchableOpacity
+              key={photo.id}
+              style={styles.heroPhoto}
+              onPress={() => handlePhotoPress(photo, index)}
+              activeOpacity={0.9}
+            >
+              <Image
+                source={{ uri: photo.url }}
+                style={styles.heroImage}
+                resizeMode="cover"
+                onError={() => handleImageError(photo.id)}
+              />
+
+              {enableLightbox && (
+                <View style={styles.heroOverlay}>
+                  <View style={styles.photoCounter}>
+                    <Text style={styles.photoCounterText}>
+                      {index + 1} / {displayPhotos.length}
+                    </Text>
+                  </View>
+                  <Ionicons
+                    name="expand-outline"
+                    size={24}
+                    color={COLORS.white}
+                  />
+                </View>
+              )}
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+      ) : (
+        // Grid layout
+        <ScrollView
+          showsVerticalScrollIndicator={false}
+          contentContainerStyle={styles.scrollContainer}
+        >
+          <View style={[styles.grid, { paddingHorizontal: spacing }]}>
+            {displayPhotos.map((photo, index) => renderPhoto(photo, index))}
+          </View>
+        </ScrollView>
+      )}
 
       {maxPhotos && photos.length > maxPhotos && (
-        <TouchableOpacity style={styles.viewMoreButton}>
+        <TouchableOpacity
+          style={styles.viewMoreButton}
+          onPress={() => {
+            // Could trigger a "view all photos" modal here
+            console.log("View all photos requested");
+          }}
+        >
           <Text style={styles.viewMoreText}>
             View all {photos.length} photos
           </Text>
@@ -180,6 +252,37 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     flexWrap: "wrap",
   },
+  heroContainer: {
+    paddingHorizontal: 0,
+  },
+  heroPhoto: {
+    width: screenWidth,
+    height: 250,
+    position: "relative",
+  },
+  heroImage: {
+    width: "100%",
+    height: "100%",
+  },
+  heroOverlay: {
+    position: "absolute",
+    bottom: SPACING.md,
+    right: SPACING.md,
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: BORDER_RADIUS.md,
+    paddingHorizontal: SPACING.sm,
+    paddingVertical: SPACING.xs,
+  },
+  photoCounter: {
+    marginRight: SPACING.sm,
+  },
+  photoCounterText: {
+    color: COLORS.white,
+    fontSize: 12,
+    fontWeight: "600",
+  },
   photoContainer: {
     borderRadius: BORDER_RADIUS.md,
     overflow: "hidden",
@@ -194,6 +297,15 @@ const styles = StyleSheet.create({
     width: "100%",
     height: "100%",
     backgroundColor: COLORS.secondary,
+  },
+  photoOverlay: {
+    position: "absolute",
+    top: SPACING.xs,
+    right: SPACING.xs,
+    backgroundColor: "rgba(0,0,0,0.6)",
+    borderRadius: BORDER_RADIUS.sm,
+    padding: SPACING.xs,
+    opacity: 0.8,
   },
   errorPhoto: {
     justifyContent: "center",
@@ -223,6 +335,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingVertical: SPACING.xl,
+    minHeight: 200,
   },
   loadingText: {
     marginTop: SPACING.sm,
@@ -234,11 +347,19 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     paddingVertical: SPACING.xl * 2,
+    minHeight: 200,
   },
   emptyText: {
     marginTop: SPACING.md,
     color: COLORS.textLight,
     fontSize: 16,
+    textAlign: "center",
+    fontWeight: "600",
+  },
+  emptySubtext: {
+    marginTop: SPACING.xs,
+    color: COLORS.textMuted,
+    fontSize: 14,
     textAlign: "center",
   },
   viewMoreButton: {

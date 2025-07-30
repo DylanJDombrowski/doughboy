@@ -1,241 +1,191 @@
-// src/components/photos/PhotoGallery.tsx - Enhanced version
+// src/components/upload/PhotoUpload.tsx - Fixed PhotoUpload Component
 import React, { useState } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  ScrollView,
   TouchableOpacity,
   Image,
-  Dimensions,
+  ScrollView,
   ActivityIndicator,
+  Alert,
 } from "react-native";
+import * as ImagePicker from "expo-image-picker";
 import { Ionicons } from "@expo/vector-icons";
 import { COLORS, SPACING, BORDER_RADIUS } from "../../constants";
 
-interface Photo {
-  id: string;
-  url: string;
-  caption?: string;
-  uploadedAt: string;
-  userId: string;
-  userName?: string;
-}
-
-interface PhotoGalleryProps {
-  photos: string[] | Photo[];
-  columns?: number;
-  spacing?: number;
-  onPhotoPress?: (photoUrl: string, index: number) => void;
-  showMetadata?: boolean;
-  enableLightbox?: boolean;
+interface PhotoUploadProps {
   maxPhotos?: number;
-  emptyStateText?: string;
-  style?: any;
-  height?: number;
-  filterOptions?: {
-    sortBy?: "newest" | "oldest" | "rating";
-    filterBy?: "all" | "rated" | "recent";
-  };
+  onPhotosChange: (photos: string[]) => void;
+  initialPhotos?: string[];
+  disabled?: boolean;
 }
 
-const { width: screenWidth } = Dimensions.get("window");
-
-const PhotoGallery: React.FC<PhotoGalleryProps> = ({
-  photos = [],
-  columns = 2,
-  spacing = SPACING.sm,
-  onPhotoPress,
-  showMetadata = false,
-  enableLightbox = true,
-  maxPhotos,
-  emptyStateText = "No photos available",
-  style,
-  height,
-  filterOptions,
+const PhotoUpload: React.FC<PhotoUploadProps> = ({
+  maxPhotos = 5,
+  onPhotosChange,
+  initialPhotos = [],
+  disabled = false,
 }) => {
+  const [photos, setPhotos] = useState<string[]>(initialPhotos);
   const [loading, setLoading] = useState(false);
-  const [imageErrors, setImageErrors] = useState<Set<string>>(new Set());
 
-  // Convert photos to uniform format
-  const normalizedPhotos = photos.map((photo, index) => {
-    if (typeof photo === "string") {
-      return {
-        id: `photo-${index}`,
-        url: photo,
-        uploadedAt: new Date().toISOString(),
-        userId: "",
-      };
+  const requestPermission = async (): Promise<boolean> => {
+    const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission Required",
+        "Please grant permission to access your photos."
+      );
+      return false;
     }
-    return photo;
-  });
+    return true;
+  };
 
-  // Apply max photos limit
-  const displayPhotos = maxPhotos
-    ? normalizedPhotos.slice(0, maxPhotos)
-    : normalizedPhotos;
+  const updatePhotos = (newPhotos: string[]) => {
+    setPhotos(newPhotos);
+    onPhotosChange(newPhotos);
+  };
 
-  // Calculate photo dimensions
-  const availableWidth = screenWidth - spacing * (columns + 1);
-  const photoWidth = availableWidth / columns;
-  const photoHeight = height
-    ? height / Math.ceil(displayPhotos.length / columns)
-    : photoWidth;
+  const pickImages = async () => {
+    if (disabled || photos.length >= maxPhotos) return;
 
-  const handlePhotoPress = (photo: Photo, index: number) => {
-    if (onPhotoPress && enableLightbox) {
-      onPhotoPress(photo.url, index);
+    try {
+      const hasPermission = await requestPermission();
+      if (!hasPermission) return;
+
+      setLoading(true);
+
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: "images" as any,
+        allowsMultipleSelection: true,
+        quality: 0.8,
+        selectionLimit: maxPhotos - photos.length,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        const newUris = result.assets.map((asset) => asset.uri);
+        const updatedPhotos = [...photos, ...newUris];
+        updatePhotos(updatedPhotos);
+      }
+    } catch (error) {
+      console.error("Error picking images:", error);
+      Alert.alert("Error", "Failed to pick images. Please try again.");
+    } finally {
+      setLoading(false);
     }
   };
 
-  const handleImageError = (photoId: string) => {
-    setImageErrors((prev) => new Set([...prev, photoId]));
+  const takePhoto = async () => {
+    if (disabled || photos.length >= maxPhotos) return;
+
+    try {
+      const { status } = await ImagePicker.requestCameraPermissionsAsync();
+      if (status !== "granted") {
+        Alert.alert(
+          "Permission Required",
+          "Please grant permission to access your camera."
+        );
+        return;
+      }
+
+      setLoading(true);
+
+      const result = await ImagePicker.launchCameraAsync({
+        mediaTypes: "images" as any,
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        const newUri = result.assets[0].uri;
+        const updatedPhotos = [...photos, newUri];
+        updatePhotos(updatedPhotos);
+      }
+    } catch (error) {
+      console.error("Error taking photo:", error);
+      Alert.alert("Error", "Failed to take photo. Please try again.");
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const renderPhoto = (photo: Photo, index: number) => {
-    const hasError = imageErrors.has(photo.id);
-
-    return (
-      <TouchableOpacity
-        key={photo.id}
-        style={[
-          styles.photoContainer,
-          {
-            width: photoWidth,
-            height: photoHeight,
-            marginBottom: spacing,
-            marginRight: (index + 1) % columns === 0 ? 0 : spacing,
-          },
-        ]}
-        onPress={() => handlePhotoPress(photo, index)}
-        disabled={hasError || !enableLightbox}
-        activeOpacity={0.8}
-      >
-        {!hasError ? (
-          <>
-            <Image
-              source={{ uri: photo.url }}
-              style={styles.photo}
-              onError={() => handleImageError(photo.id)}
-              resizeMode="cover"
-            />
-
-            {/* Photo overlay for better UX */}
-            {enableLightbox && (
-              <View style={styles.photoOverlay}>
-                <Ionicons
-                  name="expand-outline"
-                  size={20}
-                  color={COLORS.white}
-                />
-              </View>
-            )}
-          </>
-        ) : (
-          <View style={[styles.photo, styles.errorPhoto]}>
-            <Ionicons name="image-outline" size={32} color={COLORS.textMuted} />
-            <Text style={styles.errorText}>Failed to load</Text>
-          </View>
-        )}
-
-        {showMetadata && (
-          <View style={styles.metadataOverlay}>
-            <Text style={styles.metadataText} numberOfLines={1}>
-              {photo.userName || "Anonymous"}
-            </Text>
-          </View>
-        )}
-      </TouchableOpacity>
-    );
+  const removePhoto = (index: number) => {
+    const updatedPhotos = photos.filter((_, i) => i !== index);
+    updatePhotos(updatedPhotos);
   };
-
-  if (loading) {
-    return (
-      <View style={[styles.loadingContainer, style]}>
-        <ActivityIndicator size="large" color={COLORS.primary} />
-        <Text style={styles.loadingText}>Loading photos...</Text>
-      </View>
-    );
-  }
-
-  if (displayPhotos.length === 0) {
-    return (
-      <View style={[styles.emptyContainer, style]}>
-        <Ionicons name="images-outline" size={64} color={COLORS.textMuted} />
-        <Text style={styles.emptyText}>{emptyStateText}</Text>
-        <Text style={styles.emptySubtext}>
-          Add photos to reviews to share your pizza experiences!
-        </Text>
-      </View>
-    );
-  }
 
   return (
-    <View style={[styles.container, style]}>
-      {columns === 1 ? (
-        // Single column layout (hero image style)
+    <View style={styles.container}>
+      <View style={styles.header}>
+        <Text style={styles.title}>Add Photos</Text>
+        <Text style={styles.subtitle}>
+          {photos.length}/{maxPhotos}
+        </Text>
+      </View>
+
+      {photos.length > 0 && (
         <ScrollView
           horizontal
           showsHorizontalScrollIndicator={false}
-          pagingEnabled
-          contentContainerStyle={styles.heroContainer}
+          style={styles.photosList}
+          contentContainerStyle={styles.photosContent}
         >
-          {displayPhotos.map((photo, index) => (
-            <TouchableOpacity
-              key={photo.id}
-              style={styles.heroPhoto}
-              onPress={() => handlePhotoPress(photo, index)}
-              activeOpacity={0.9}
-            >
-              <Image
-                source={{ uri: photo.url }}
-                style={styles.heroImage}
-                resizeMode="cover"
-                onError={() => handleImageError(photo.id)}
-              />
-
-              {enableLightbox && (
-                <View style={styles.heroOverlay}>
-                  <View style={styles.photoCounter}>
-                    <Text style={styles.photoCounterText}>
-                      {index + 1} / {displayPhotos.length}
-                    </Text>
-                  </View>
-                  <Ionicons
-                    name="expand-outline"
-                    size={24}
-                    color={COLORS.white}
-                  />
-                </View>
-              )}
-            </TouchableOpacity>
+          {photos.map((photo, index) => (
+            <View key={index} style={styles.photoContainer}>
+              <Image source={{ uri: photo }} style={styles.photo} />
+              <TouchableOpacity
+                style={styles.removeButton}
+                onPress={() => removePhoto(index)}
+              >
+                <Ionicons name="close-circle" size={24} color={COLORS.error} />
+              </TouchableOpacity>
+            </View>
           ))}
-        </ScrollView>
-      ) : (
-        // Grid layout
-        <ScrollView
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.scrollContainer}
-        >
-          <View style={[styles.grid, { paddingHorizontal: spacing }]}>
-            {displayPhotos.map((photo, index) => renderPhoto(photo, index))}
-          </View>
         </ScrollView>
       )}
 
-      {maxPhotos && photos.length > maxPhotos && (
+      <View style={styles.buttonContainer}>
         <TouchableOpacity
-          style={styles.viewMoreButton}
-          onPress={() => {
-            // Could trigger a "view all photos" modal here
-            console.log("View all photos requested");
-          }}
+          style={[
+            styles.button,
+            (disabled || photos.length >= maxPhotos) && styles.buttonDisabled,
+          ]}
+          onPress={pickImages}
+          disabled={disabled || loading || photos.length >= maxPhotos}
         >
-          <Text style={styles.viewMoreText}>
-            View all {photos.length} photos
-          </Text>
-          <Ionicons name="chevron-forward" size={16} color={COLORS.primary} />
+          {loading ? (
+            <ActivityIndicator size="small" color={COLORS.white} />
+          ) : (
+            <>
+              <Ionicons name="images-outline" size={20} color={COLORS.white} />
+              <Text style={styles.buttonText}>Gallery</Text>
+            </>
+          )}
         </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[
+            styles.button,
+            (disabled || photos.length >= maxPhotos) && styles.buttonDisabled,
+          ]}
+          onPress={takePhoto}
+          disabled={disabled || loading || photos.length >= maxPhotos}
+        >
+          {loading ? (
+            <ActivityIndicator size="small" color={COLORS.white} />
+          ) : (
+            <>
+              <Ionicons name="camera-outline" size={20} color={COLORS.white} />
+              <Text style={styles.buttonText}>Camera</Text>
+            </>
+          )}
+        </TouchableOpacity>
+      </View>
+
+      {photos.length >= maxPhotos && (
+        <Text style={styles.maxPhotosText}>
+          Maximum {maxPhotos} photos reached
+        </Text>
       )}
     </View>
   );
@@ -243,139 +193,82 @@ const PhotoGallery: React.FC<PhotoGalleryProps> = ({
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-  },
-  scrollContainer: {
-    paddingBottom: SPACING.lg,
-  },
-  grid: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-  },
-  heroContainer: {
-    paddingHorizontal: 0,
-  },
-  heroPhoto: {
-    width: screenWidth,
-    height: 250,
-    position: "relative",
-  },
-  heroImage: {
-    width: "100%",
-    height: "100%",
-  },
-  heroOverlay: {
-    position: "absolute",
-    bottom: SPACING.md,
-    right: SPACING.md,
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "rgba(0,0,0,0.6)",
+    backgroundColor: COLORS.white,
     borderRadius: BORDER_RADIUS.md,
-    paddingHorizontal: SPACING.sm,
-    paddingVertical: SPACING.xs,
+    padding: SPACING.md,
+    marginVertical: SPACING.sm,
   },
-  photoCounter: {
-    marginRight: SPACING.sm,
+  header: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: SPACING.sm,
   },
-  photoCounterText: {
-    color: COLORS.white,
-    fontSize: 12,
+  title: {
+    fontSize: 16,
     fontWeight: "600",
+    color: COLORS.text,
+  },
+  subtitle: {
+    fontSize: 14,
+    color: COLORS.textLight,
+  },
+  photosList: {
+    marginBottom: SPACING.md,
+  },
+  photosContent: {
+    paddingVertical: SPACING.sm,
   },
   photoContainer: {
-    borderRadius: BORDER_RADIUS.md,
-    overflow: "hidden",
+    marginRight: SPACING.sm,
     position: "relative",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
   },
   photo: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: COLORS.secondary,
+    width: 80,
+    height: 80,
+    borderRadius: BORDER_RADIUS.md,
   },
-  photoOverlay: {
+  removeButton: {
     position: "absolute",
-    top: SPACING.xs,
-    right: SPACING.xs,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    borderRadius: BORDER_RADIUS.sm,
-    padding: SPACING.xs,
-    opacity: 0.8,
+    top: -8,
+    right: -8,
+    backgroundColor: COLORS.white,
+    borderRadius: 12,
+    elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.2,
+    shadowRadius: 1,
   },
-  errorPhoto: {
-    justifyContent: "center",
-    alignItems: "center",
+  buttonContainer: {
+    flexDirection: "row",
+    justifyContent: "space-between",
   },
-  errorText: {
-    fontSize: 12,
-    color: COLORS.textMuted,
-    marginTop: SPACING.xs,
-    textAlign: "center",
-  },
-  metadataOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    backgroundColor: "rgba(0,0,0,0.7)",
-    padding: SPACING.xs,
-  },
-  metadataText: {
-    color: COLORS.white,
-    fontSize: 12,
-    fontWeight: "500",
-  },
-  loadingContainer: {
+  button: {
     flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: SPACING.xl,
-    minHeight: 200,
-  },
-  loadingText: {
-    marginTop: SPACING.sm,
-    color: COLORS.textLight,
-    fontSize: 16,
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingVertical: SPACING.xl * 2,
-    minHeight: 200,
-  },
-  emptyText: {
-    marginTop: SPACING.md,
-    color: COLORS.textLight,
-    fontSize: 16,
-    textAlign: "center",
-    fontWeight: "600",
-  },
-  emptySubtext: {
-    marginTop: SPACING.xs,
-    color: COLORS.textMuted,
-    fontSize: 14,
-    textAlign: "center",
-  },
-  viewMoreButton: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
-    paddingVertical: SPACING.md,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.border,
-    backgroundColor: COLORS.white,
+    backgroundColor: COLORS.primary,
+    paddingVertical: SPACING.sm,
+    paddingHorizontal: SPACING.md,
+    borderRadius: BORDER_RADIUS.md,
+    marginHorizontal: SPACING.xs,
   },
-  viewMoreText: {
-    color: COLORS.primary,
+  buttonDisabled: {
+    backgroundColor: COLORS.textMuted,
+  },
+  buttonText: {
+    color: COLORS.white,
     fontWeight: "500",
-    marginRight: SPACING.xs,
+    marginLeft: SPACING.xs,
+  },
+  maxPhotosText: {
+    textAlign: "center",
+    color: COLORS.textMuted,
+    fontSize: 12,
+    marginTop: SPACING.sm,
   },
 });
 
-export default PhotoGallery;
+export default PhotoUpload;
