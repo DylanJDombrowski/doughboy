@@ -1,3 +1,4 @@
-// app/(tabs)/map.tsx
+// app/(tabs)/map.tsx - Simple fix
 import MapScreen from "../../src/screens/tabs/MapScreen";
-export { MapScreen as default };
+
+export default MapScreen;

@@ -494,7 +494,6 @@ export default function PizzeriaDetailScreen() {
           onReviewSubmitted={() => {
             setShowReviewModal(false);
             loadPizzeriaData(); // Refresh data after review submission
-            Alert.alert("Success", "Your review has been submitted!");
           }}
         />
       )}
